@@ -13,10 +13,9 @@ const COLUMN_TRANSLATIONS = {
 };
 
 class CheckMates {
-    constructor(url, ctx) {
+    constructor(url, canvas, ctx) {
         this.webSocket = new WebSocket(url);
-        this.board = new Board();
-        this.ctx = ctx;
+        this.board = new Board(canvas, ctx);
         this.color = 'w';
         this.turn = true;
     }
@@ -29,41 +28,17 @@ class CheckMates {
         this.turn != this.turn;
     }
 
-    drawBoard(){
-        for (let row = 0; row < BOARD_SIZE; ++row) {
-            for (let col = 0; col < BOARD_SIZE; ++col) {
-                this.ctx.fillStyle = (row + col) % 2 == 0 ? 'white': 'steelblue';
-                this.ctx.fillRect(row * SQUARE_SIZE, col * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
-            }
-        }
-    }
-
-    loadPieces() {
-        const grid = this.board.getGrid();
-
-        const drawPiece = (piece) => {
-            this.ctx.drawImage(piece.img, piece.x * SQUARE_SIZE, piece.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
-        }
-
-        for (let row = 0; row < 2; ++row) {
-            for (let col = 0; col < BOARD_SIZE; ++col) {
-                const piece = grid[row][col];
-                piece.loadImage(() => drawPiece(piece));
-            }
-        }
-
-        for (let row = 6; row < BOARD_SIZE; ++row) {
-            for (let col = 0; col < BOARD_SIZE; ++col) {
-                const piece = grid[row][col];
-                piece.loadImage(() => drawPiece(piece));
-            }
-        }
+    initGraphics(){
+        this.board.drawBoard();
+        this.board.loadPieces();
     }
 }
 
 class Board {
-    constructor() {
+    constructor(canvas, ctx) {
         this.grid = this.initGrid();
+        this.canvas = canvas;
+        this.ctx = ctx;
     }
 
     initGrid() {
@@ -80,6 +55,35 @@ class Board {
         })
 
         return grid;
+    }
+
+    drawBoard() {
+        for (let row = 0; row < BOARD_SIZE; ++row) {
+            for (let col = 0; col < BOARD_SIZE; ++col) {
+                this.ctx.fillStyle = (row + col) % 2 === 0 ? 'white': 'steelblue';
+                this.ctx.fillRect(row * SQUARE_SIZE, col * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            }
+        }
+    }
+
+    loadPieces() {
+        const drawPiece = (piece) => {
+            this.ctx.drawImage(piece.img, piece.x * SQUARE_SIZE, piece.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+        }
+
+        for (let row = 0; row < 2; ++row) {
+            for (let col = 0; col < BOARD_SIZE; ++col) {
+                const piece = this.grid[row][col];
+                piece.loadImage(() => drawPiece(piece));
+            }
+        }
+
+        for (let row = 6; row < BOARD_SIZE; ++row) {
+            for (let col = 0; col < BOARD_SIZE; ++col) {
+                const piece = this.grid[row][col];
+                piece.loadImage(() => drawPiece(piece));
+            }
+        }
     }
 
     initWhitePieces() {
@@ -118,10 +122,6 @@ class Board {
         pieces.push(new Piece('king', 'b', 3, 7));
 
         return pieces;
-    }
-
-    getGrid() {
-        return this.grid;
     }
 }
 
@@ -172,8 +172,7 @@ window.addEventListener('load', () => {
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    const checkMates = new CheckMates('ws:8000', ctx);
+    const checkMates = new CheckMates('ws:8000', canvas, ctx);
 
-    checkMates.drawBoard();
-    checkMates.loadPieces();
+    checkMates.initGraphics();
 });
