@@ -15,7 +15,7 @@ const COLUMN_TRANSLATIONS = {
 class CheckMates {
     constructor(url, canvas, ctx) {
         this.webSocket = new WebSocket(url);
-        this.board = new Board(canvas, ctx);
+        this.board = new Board(canvas, ctx, 'w');
         this.color = 'w';
         this.turn = true;
     }
@@ -32,13 +32,19 @@ class CheckMates {
         this.board.drawBoard();
         this.board.loadPieces();
     }
+
+    handleClick(event) {
+        this.board.handleClick(event);
+    }
 }
 
 class Board {
-    constructor(canvas, ctx) {
+    constructor(canvas, ctx, color) {
         this.grid = this.initGrid();
+        this.selectedPiece = null;
         this.canvas = canvas;
         this.ctx = ctx;
+        this.color = color;
     }
 
     initGrid() {
@@ -67,23 +73,68 @@ class Board {
     }
 
     loadPieces() {
-        const drawPiece = (piece) => {
-            this.ctx.drawImage(piece.img, piece.x * SQUARE_SIZE, piece.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
-        }
-
         for (let row = 0; row < 2; ++row) {
             for (let col = 0; col < BOARD_SIZE; ++col) {
                 const piece = this.grid[row][col];
-                piece.loadImage(() => drawPiece(piece));
+                piece.loadImage(() => this.drawPiece(piece));
             }
         }
 
         for (let row = 6; row < BOARD_SIZE; ++row) {
             for (let col = 0; col < BOARD_SIZE; ++col) {
                 const piece = this.grid[row][col];
-                piece.loadImage(() => drawPiece(piece));
+                piece.loadImage(() => this.drawPiece(piece));
             }
         }
+    }
+
+    drawPiece(piece) {
+        this.ctx.drawImage(piece.img, piece.x * SQUARE_SIZE, piece.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+    }
+
+    handleClick(event) {
+        const rect = this.canvas.getBoundingClientRect();
+
+        const clickedX = Math.floor((event.clientX - rect.left) / 75);
+        const clickedY = Math.floor((event.clientY - rect.top) / 75);
+
+        const piece = this.grid[clickedY][clickedX];
+
+        if (this.selectedPiece === null && piece !== null && piece.color !== this.color) {
+            return;
+        }
+
+        if (this.selectedPiece === null && piece !== null) {
+            this.ctx.fillStyle = '#FFD966';
+            this.ctx.fillRect(clickedX * SQUARE_SIZE, clickedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            this.selectedPiece = piece;
+            this.drawPiece(piece);
+            return;
+        }
+
+        const [selectedX, selectedY] = this.selectedPiece.getPos();
+
+        if (selectedX === clickedX && selectedY === clickedY) {
+            this.ctx.fillStyle = (selectedX + selectedY) % 2 === 0 ? 'white': 'steelblue';
+            this.ctx.fillRect(selectedX * SQUARE_SIZE, selectedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            this.drawPiece(piece);
+            this.selectedPiece = null;
+            return;
+        }
+
+        if (piece !== null && piece.color === this.color) {
+            this.ctx.fillStyle = (selectedX + selectedY) % 2 === 0 ? 'white': 'steelblue';
+            this.ctx.fillRect(selectedX * SQUARE_SIZE, selectedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            this.drawPiece(this.selectedPiece);
+
+            this.ctx.fillStyle = '#FFD966';
+            this.ctx.fillRect(clickedX * SQUARE_SIZE, clickedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            this.selectedPiece = piece;
+            this.drawPiece(piece);
+            return;
+        }
+
+        // check if valid move down here...
     }
 
     initWhitePieces() {
@@ -142,6 +193,10 @@ class Piece {
             callback();
         };
     }
+
+    getPos() {
+        return [this.x, this.y];
+    }
 }
 
 class Pawn extends Piece {
@@ -175,4 +230,6 @@ window.addEventListener('load', () => {
     const checkMates = new CheckMates('ws:8000', canvas, ctx);
 
     checkMates.initGraphics();
+
+    canvas.addEventListener('click', (event) => checkMates.handleClick(event));
 });
