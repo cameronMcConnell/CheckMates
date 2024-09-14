@@ -66,8 +66,7 @@ class Board {
     drawBoard() {
         for (let row = 0; row < BOARD_SIZE; ++row) {
             for (let col = 0; col < BOARD_SIZE; ++col) {
-                this.ctx.fillStyle = (row + col) % 2 === 0 ? 'white': 'steelblue';
-                this.ctx.fillRect(row * SQUARE_SIZE, col * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+                this.drawBoardSquare(row, col);
             }
         }
     }
@@ -88,6 +87,11 @@ class Board {
         }
     }
 
+    drawBoardSquare(x, y) {
+        this.ctx.fillStyle = (x + y) % 2 === 0 ? 'white': 'steelblue';
+        this.ctx.fillRect(x * SQUARE_SIZE, y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+    }
+
     drawPiece(piece) {
         this.ctx.drawImage(piece.img, piece.x * SQUARE_SIZE, piece.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
     }
@@ -105,36 +109,34 @@ class Board {
         }
 
         if (this.selectedPiece === null && piece !== null) {
-            this.ctx.fillStyle = '#FFD966';
-            this.ctx.fillRect(clickedX * SQUARE_SIZE, clickedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
-            this.selectedPiece = piece;
-            this.drawPiece(piece);
+            this.highlightPiece(clickedX, clickedY, piece);
             return;
         }
 
         const [selectedX, selectedY] = this.selectedPiece.getPos();
 
         if (selectedX === clickedX && selectedY === clickedY) {
-            this.ctx.fillStyle = (selectedX + selectedY) % 2 === 0 ? 'white': 'steelblue';
-            this.ctx.fillRect(selectedX * SQUARE_SIZE, selectedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            this.drawBoardSquare(selectedX, selectedY);
             this.drawPiece(piece);
             this.selectedPiece = null;
             return;
         }
 
         if (piece !== null && piece.color === this.color) {
-            this.ctx.fillStyle = (selectedX + selectedY) % 2 === 0 ? 'white': 'steelblue';
-            this.ctx.fillRect(selectedX * SQUARE_SIZE, selectedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            this.drawBoardSquare(selectedX, selectedY);
             this.drawPiece(this.selectedPiece);
-
-            this.ctx.fillStyle = '#FFD966';
-            this.ctx.fillRect(clickedX * SQUARE_SIZE, clickedY * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
-            this.selectedPiece = piece;
-            this.drawPiece(piece);
+            this.highlightPiece(clickedX, clickedY, piece);
             return;
         }
 
         // check if valid move down here...
+    }
+
+    highlightPiece(x, y, piece) {
+        this.ctx.fillStyle = '#FFD966';
+        this.ctx.fillRect(x * SQUARE_SIZE, y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+        this.selectedPiece = piece;
+        this.drawPiece(piece);
     }
 
     initWhitePieces() {
@@ -183,6 +185,7 @@ class Piece {
         this.img = new Image(SQUARE_SIZE, SQUARE_SIZE);
         this.x = x;
         this.y = y;
+        this.hasMoved = false;
     }
 
     loadImage(callback) {
@@ -197,30 +200,11 @@ class Piece {
     getPos() {
         return [this.x, this.y];
     }
-}
 
-class Pawn extends Piece {
-
-}
-
-class Rook extends Piece {
-
-}
-
-class Knight extends Piece {
-
-}
-
-class Bishop extends Piece {
-
-}
-
-class Queen extends Piece {
-
-}
-
-class King extends Piece {
-
+    updatePos(x, y) {
+        this.x = x;
+        this.y = y;
+    }
 }
 
 window.addEventListener('load', () => {
