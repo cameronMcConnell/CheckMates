@@ -15,8 +15,8 @@ const COLUMN_TRANSLATIONS = {
 class CheckMates {
     constructor(url, canvas, ctx) {
         this.webSocket = new WebSocket(url);
-        this.board = new Board(canvas, ctx, 'w');
         this.color = 'w';
+        this.board = this.initBoard(canvas, ctx, this.color);
         this.turn = true;
     }
 
@@ -28,13 +28,20 @@ class CheckMates {
         this.turn != this.turn;
     }
 
-    initGraphics(){
-        this.board.drawBoard();
-        this.board.loadPieces();
-    }
+    initBoard(canvas, ctx, color) {
+        if (color === 'w') {
+            ctx.translate(canvas.width, canvas.height);
+            ctx.rotate(Math.PI);
+        }
 
-    handleClick(event) {
-        this.board.handleClick(event);
+        let board = new Board(canvas, ctx, color);
+
+        board.drawBoard();
+        board.loadPieces();
+
+        canvas.addEventListener('click', (event) => board.handleClick(event))
+
+        return board;
     }
 }
 
@@ -93,14 +100,35 @@ class Board {
     }
 
     drawPiece(piece) {
-        this.ctx.drawImage(piece.img, piece.x * SQUARE_SIZE, piece.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+        this.ctx.save();
+
+        const pieceX = piece.x * SQUARE_SIZE;
+        const pieceY = piece.y * SQUARE_SIZE;
+
+        if (this.color === 'w') {
+            this.ctx.translate(pieceX + SQUARE_SIZE / 2, pieceY + SQUARE_SIZE / 2);
+            this.ctx.rotate(Math.PI);
+            this.ctx.drawImage(piece.img, -SQUARE_SIZE / 2, -SQUARE_SIZE / 2, SQUARE_SIZE, SQUARE_SIZE);
+        } else {
+            this.ctx.drawImage(piece.img, pieceX, pieceY, SQUARE_SIZE, SQUARE_SIZE);
+        }
+
+        this.ctx.restore();
     }
 
     handleClick(event) {
         const rect = this.canvas.getBoundingClientRect();
 
-        const clickedX = Math.floor((event.clientX - rect.left) / 75);
-        const clickedY = Math.floor((event.clientY - rect.top) / 75);
+        let x = event.clientX - rect.left;
+        let y = event.clientY - rect.top;
+
+        if (this.color === 'w') {
+            x = this.canvas.width - x;
+            y = this.canvas.height - y;
+        }
+
+        const clickedX = Math.floor(x / SQUARE_SIZE);
+        const clickedY = Math.floor(y / SQUARE_SIZE);
 
         const piece = this.grid[clickedY][clickedX];
 
@@ -212,8 +240,4 @@ window.addEventListener('load', () => {
     const ctx = canvas.getContext('2d');
 
     const checkMates = new CheckMates('ws:8000', canvas, ctx);
-
-    checkMates.initGraphics();
-
-    canvas.addEventListener('click', (event) => checkMates.handleClick(event));
 });
