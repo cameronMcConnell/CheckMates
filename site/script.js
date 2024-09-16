@@ -132,6 +132,10 @@ class Board {
 
         const piece = this.grid[clickedY][clickedX];
 
+        if (this.selectedPiece === null && piece === null) {
+            return;
+        }
+        
         if (this.selectedPiece === null && piece !== null && piece.color !== this.color) {
             return;
         }
@@ -157,7 +161,7 @@ class Board {
             return;
         }
 
-        // check if valid move down here...
+        this.movePiece(clickedX, clickedY);
     }
 
     highlightPiece(x, y, piece) {
@@ -167,11 +171,150 @@ class Board {
         this.drawPiece(piece);
     }
 
+    movePiece(x, y) {
+        const validMoves = this.getValidMoves();
+        const move = `${x},${y}`;
+
+        if (validMoves.has(move)) {
+            this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
+            this.drawBoardSquare(x, y);
+            
+            this.grid[this.selectedPiece.y][this.selectedPiece.x] = null;
+            this.selectedPiece.updatePos(x, y);
+            this.drawPiece(this.selectedPiece);
+            this.grid[y][x] = this.selectedPiece;
+        }
+
+        this.selectedPiece = null;
+    }
+
+    getValidMoves() {
+        let validMoves;
+
+        switch (this.selectedPiece.type) {
+            case 'pawn':
+                validMoves = this.getPawnMoves();
+                break;
+            case 'rook':
+                validMoves = this.getRookMoves();
+                break;
+            case 'knight':
+                validMoves = this.getKnightMoves();
+                break;
+            case 'bishop':
+                validMoves = this.getBishopMoves();
+                break;
+            case 'queen':
+                validMoves = this.getQueenMoves();
+                break;
+            case 'king':
+                validMoves = this.getKingMoves();
+                break;
+            default:
+                console.log('Not a valid piece. You messing with the source code. Naughty Naughty.');
+                validMoves = null;
+                break;
+        }
+
+        return validMoves;
+    }
+
+    getPawnMoves() {
+        let pawnMoves = new Set();
+
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
+
+        if (this.selectedPiece.color === 'w') {
+            // Move one square forward
+            if (y + 1 < BOARD_SIZE && this.grid[y + 1][x] === null) {
+                pawnMoves.add(`${x},${y + 1}`);
+            }
+
+            // Check for double move if pawn hasn't moved and the squares in front are empty
+            if (y + 2 < BOARD_SIZE && this.grid[y + 1][x] === null && this.grid[y + 2][x] === null && !this.selectedPiece.hasMoved) {
+                pawnMoves.add(`${x},${y + 2}`);
+            }
+
+            // Capture diagonally to the right
+            if (y + 1 < BOARD_SIZE && x + 1 < BOARD_SIZE && this.grid[y + 1][x + 1] !== null && this.grid[y + 1][x + 1].color === 'b') {
+                pawnMoves.add(`${x + 1},${y + 1}`);
+            }
+
+            // Capture diagonally to the left
+            if (y + 1 < BOARD_SIZE && x - 1 > -1 && this.grid[y + 1][x - 1] !== null && this.grid[y + 1][x - 1].color === 'b') {
+                pawnMoves.add(`${x - 1},${y + 1}`);
+            }
+
+            // En passant to the right 
+            if (y === 4 && x + 1 < BOARD_SIZE && this.grid[y][x + 1] !== null && this.grid[y][x + 1].type === 'pawn' && this.grid[y][x+1].color === 'b' && this.grid[y][x + 1].hasMovedTwoSpaces && this.grid[y + 1][x + 1] === null) {
+                pawnMoves.add(`${x + 1},${y + 1}`);
+            }
+
+            // En passant to the left
+            if (y === 4 && x - 1 > -1 && this.grid[y][x - 1] !== null && this.grid[y][x - 1].type === 'pawn' && this.grid[y][x - 1].color === 'b' && this.grid[y][x - 1].hasMovedTwoSpaces && this.grid[y + 1][x - 1] === null) {
+                pawnMoves.add(`${x - 1},${y + 1}`);
+            }
+        } else {
+            // Move one square forward
+            if (y - 1 >= 0 && this.grid[y - 1][x] === null) {
+                pawnMoves.add(`${x},${y - 1}`);
+            }
+
+            // Check for double move if pawn hasn't moved and the squares in front are empty
+            if (y - 2 >= 0 && this.grid[y - 1][x] === null && this.grid[y - 2][x] === null && !this.selectedPiece.hasMoved) {
+                pawnMoves.add(`${x},${y - 2}`);
+            }
+
+            // Capture diagonally to the right
+            if (y - 1 >= 0 && x + 1 < BOARD_SIZE && this.grid[y - 1][x + 1] !== null && this.grid[y - 1][x + 1].color === 'w') {
+                pawnMoves.add(`${x + 1},${y - 1}`);
+            }
+
+            // Capture diagonally to the left
+            if (y - 1 >= 0 && x - 1 >= 0 && this.grid[y - 1][x - 1] !== null && this.grid[y - 1][x - 1].color === 'w') {
+                pawnMoves.add(`${x - 1},${y - 1}`);
+            }
+
+            // En passant to the right
+            if (y === 3 && x + 1 < BOARD_SIZE && this.grid[y][x + 1] !== null && this.grid[y][x + 1].type === 'pawn' && this.grid[y][x + 1].color === 'w' && this.grid[y][x + 1].hasMovedTwoSpaces && this.grid[y - 1][x + 1] === null) {
+                pawnMoves.add(`${x + 1},${y - 1}`);
+            }
+
+            // En passant to the left
+            if (y === 3 && x - 1 >= 0 && this.grid[y][x - 1] !== null && this.grid[y][x - 1].type === 'pawn' && this.grid[y][x - 1].color === 'w' && this.grid[y][x - 1].hasMovedTwoSpaces && this.grid[y - 1][x - 1] === null) {
+                pawnMoves.add(`${x - 1},${y - 1}`);
+            }
+        }
+
+        return pawnMoves;
+    }
+
+    getRookMoves() {
+
+    }
+
+    getKnightMoves() {
+
+    }
+
+    getBishopMoves() {
+
+    }
+
+    getQueenMoves() {
+
+    }
+
+    getKingMoves() {
+
+    }
+
     initWhitePieces() {
         let pieces = [];
     
         for (let col = 0; col < BOARD_SIZE; ++col) {
-            pieces.push(new Piece('pawn', 'w', col, 1));
+            pieces.push(new Pawn('w', col, 1));
         }
     
         pieces.push(new Piece('rook', 'w', 0, 0));
@@ -190,7 +333,7 @@ class Board {
         let pieces = [];
 
         for (let col = 0; col < BOARD_SIZE; ++col) {
-            pieces.push(new Piece('pawn', 'b', col, 6));
+            pieces.push(new Pawn('b', col, 6));
         }
 
         pieces.push(new Piece('rook', 'b', 0, 7));
@@ -232,6 +375,21 @@ class Piece {
     updatePos(x, y) {
         this.x = x;
         this.y = y;
+    }
+
+    setHasMoved() {
+        this.hasMoved = true;
+    }
+}
+
+class Pawn extends Piece {
+    constructor(color, x, y) {
+        super('pawn', color, x, y);
+        this.hasMovedTwoSpaces = false;
+    }
+
+    setHasMovedTwoSpaces() {
+        this.hasMovedTwoSpaces = true;
     }
 }
 
