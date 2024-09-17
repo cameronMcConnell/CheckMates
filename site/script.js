@@ -183,6 +183,34 @@ class Board {
             this.selectedPiece.updatePos(x, y);
             this.drawPiece(this.selectedPiece);
             this.grid[y][x] = this.selectedPiece;
+
+            console.log(move);
+
+            if (this.selectedPiece.type === 'pawn') {
+                if (this.selectedPiece.color === 'w') {
+
+                    if (move === `${x},${y + 2}`) {
+                        this.selectedPiece.setHasMovedTwoSpaces(true);
+                    } else {
+                        this.selectedPiece.setHasMovedTwoSpaces(false);
+                    }
+
+                    this.selectedPiece.setHasMoved();
+                } else {
+
+                    if (this.selectedPiece.type === 'pawn' && move === `${x},${y - 2}`) {
+                        this.selectedPiece.setHasMovedTwoSpaces(true);
+                    } else {
+                        this.selectedPiece.setHasMovedTwoSpaces(false);
+                    }
+
+                    this.selectedPiece.setHasMoved();
+                }
+            }
+        }
+        else {
+            this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
+            this.drawPiece(this.selectedPiece);
         }
 
         this.selectedPiece = null;
@@ -220,7 +248,7 @@ class Board {
     }
 
     getPawnMoves() {
-        let pawnMoves = new Set();
+        const pawnMoves = new Set();
 
         const x = this.selectedPiece.x;
         const y = this.selectedPiece.y;
@@ -295,7 +323,113 @@ class Board {
     }
 
     getKnightMoves() {
+       const knightMoves = new Set();
 
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
+
+        if (this.selectedPiece.color === 'w') {
+            
+            if (y + 2 < BOARD_SIZE && x + 1 < BOARD_SIZE) {
+                if (this.grid[y + 2][x + 1] === null || this.grid[y + 2][x + 1].color === 'b') {
+                    knightMoves.add(`${x + 1},${y + 2}`);    
+                }
+            }
+
+            if (y + 1 < BOARD_SIZE && x + 2 < BOARD_SIZE) {
+                if (this.grid[y + 1][x + 2] === null || this.grid[y + 1][x + 2].color === 'b') {
+                    knightMoves.add(`${x + 2},${y + 1}`);
+                }
+            }
+
+            if (y - 2 > -1 && x + 1 < BOARD_SIZE) {
+                if (this.grid[y - 2][x + 1] === null || this.grid[y - 2][x + 1].color === 'b') {
+                    knightMoves.add(`${x + 1},${y - 2}`)
+                }
+            }
+
+            if (y - 1 > -1 && x + 2 < BOARD_SIZE) {
+                if (this.grid[y - 1][x + 2] === null || this.grid[y - 1][x + 2].color === 'b') {
+                    knightMoves.add(`${x + 2},${y - 1}`);
+                }
+            }
+
+            if (y + 2 < BOARD_SIZE && x - 1 > -1) {
+                if (this.grid[y + 2][x - 1] === null || this.grid[y + 2][x - 1].color === 'b') {
+                    knightMoves.add(`${x - 1},${y + 2}`);
+                }
+            }
+
+            if (y + 1 < BOARD_SIZE && x - 2 > -1) {
+                if (this.grid[y + 1][x - 2] === null || this.grid[y + 1][x - 2].color === 'b') {
+                    knightMoves.add(`${x - 2},${y + 1}`);
+                }
+            }
+
+            if (y - 2 > -1 && x - 1 > -1) {
+                if (this.grid[y - 2][x - 1] === null || this.grid[y - 2][x - 1].color === 'b') {
+                    knightMoves.add(`${x - 1},${y - 2}`);
+                }
+            }
+
+            if (y - 1 > -1 && x - 2 > -1) {
+                if (this.grid[y - 1][x - 2] === null || this.grid[y - 1][x - 2].color === 'b') {
+                    knightMoves.add(`${x - 2},${y - 1}`);
+                }
+            }
+
+        } else {
+            
+            if (y + 2 < BOARD_SIZE && x + 1 < BOARD_SIZE) {
+                if (this.grid[y + 2][x + 1] === null || this.grid[y + 2][x + 1].color === 'w') {
+                    knightMoves.add(`${x + 1},${y + 2}`);    
+                }
+            }
+
+            if (y + 1 < BOARD_SIZE && x + 2 < BOARD_SIZE) {
+                if (this.grid[y + 1][x + 2] === null || this.grid[y + 1][x + 2].color === 'w') {
+                    knightMoves.add(`${x + 2},${y + 1}`);
+                }
+            }
+
+            if (y - 2 > -1 && x + 1 < BOARD_SIZE) {
+                if (this.grid[y - 2][x + 1] === null || this.grid[y - 2][x + 1].color === 'w') {
+                    knightMoves.add(`${x + 1},${y - 2}`)
+                }
+            }
+
+            if (y - 1 > -1 && x + 2 < BOARD_SIZE) {
+                if (this.grid[y - 1][x + 2] === null || this.grid[y - 1][x + 2].color === 'w') {
+                    knightMoves.add(`${x + 2},${y - 1}`);
+                }
+            }
+
+            if (y + 2 < BOARD_SIZE && x - 1 > -1) {
+                if (this.grid[y + 2][x - 1] === null || this.grid[y + 2][x - 1].color === 'w') {
+                    knightMoves.add(`${x - 1},${y + 2}`);
+                }
+            }
+
+            if (y + 1 < BOARD_SIZE && x - 2 > -1) {
+                if (this.grid[y + 1][x - 2] === null || this.grid[y + 1][x - 2].color === 'w') {
+                    knightMoves.add(`${x - 2},${y + 1}`);
+                }
+            }
+
+            if (y - 2 > -1 && x - 1 > -1) {
+                if (this.grid[y - 2][x - 1] === null || this.grid[y - 2][x - 1].color === 'w') {
+                    knightMoves.add(`${x - 1},${y - 2}`);
+                }
+            }
+
+            if (y - 1 > -1 && x - 2 > -1) {
+                if (this.grid[y - 1][x - 2] === null || this.grid[y - 1][x - 2].color === 'w') {
+                    knightMoves.add(`${x - 2},${y - 1}`);
+                }
+            }
+        }
+
+        return knightMoves;
     }
 
     getBishopMoves() {
@@ -388,8 +522,8 @@ class Pawn extends Piece {
         this.hasMovedTwoSpaces = false;
     }
 
-    setHasMovedTwoSpaces() {
-        this.hasMovedTwoSpaces = true;
+    invertHasMovedTwoSpaces(flag) {
+        this.hasMovedTwoSpaces = flag;
     }
 }
 
