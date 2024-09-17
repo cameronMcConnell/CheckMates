@@ -257,71 +257,46 @@ class Board {
     }
 
     getPawnMoves() {
+        if (this.selectedPiece.color === 'w') {
+            return this.pawnMovesLogic('b', 1, 4);
+        }
+
+        return this.pawnMovesLogic('w', -1, 3);
+    }
+
+    pawnMovesLogic(color, inc, enPassantRank) {
         const pawnMoves = new Set();
 
         const x = this.selectedPiece.x;
         const y = this.selectedPiece.y;
 
-        if (this.selectedPiece.color === 'w') {
-            // Move one square forward
-            if (y + 1 < BOARD_SIZE && this.grid[y + 1][x] === null) {
-                pawnMoves.add(`${x},${y + 1}`);
-            }
+        if (y + inc < BOARD_SIZE && this.grid[y + inc][x] === null) {
+            pawnMoves.add(`${x},${y + inc}`);
+        }
 
-            // Check for double move if pawn hasn't moved and the squares in front are empty
-            if (y + 2 < BOARD_SIZE && this.grid[y + 1][x] === null && this.grid[y + 2][x] === null && !this.selectedPiece.hasMoved) {
-                pawnMoves.add(`${x},${y + 2}`);
-            }
+        // Check for double move if pawn hasn't moved and the squares in front are empty
+        if (y + inc + inc < BOARD_SIZE && this.grid[y + inc][x] === null && this.grid[y + inc + inc][x] === null && !this.selectedPiece.hasMoved) {
+            pawnMoves.add(`${x},${y + inc + inc}`);
+        }
 
-            // Capture diagonally to the right
-            if (y + 1 < BOARD_SIZE && x + 1 < BOARD_SIZE && this.grid[y + 1][x + 1] !== null && this.grid[y + 1][x + 1].color === 'b') {
-                pawnMoves.add(`${x + 1},${y + 1}`);
-            }
+        // Capture diagonally to the right
+        if (y + inc < BOARD_SIZE && x + 1 < BOARD_SIZE && this.grid[y + inc][x + 1] !== null && this.grid[y + inc][x + 1].color === color) {
+            pawnMoves.add(`${x + 1},${y + inc}`);
+        }
 
-            // Capture diagonally to the left
-            if (y + 1 < BOARD_SIZE && x - 1 > -1 && this.grid[y + 1][x - 1] !== null && this.grid[y + 1][x - 1].color === 'b') {
-                pawnMoves.add(`${x - 1},${y + 1}`);
-            }
+        // Capture diagonally to the left
+        if (y + inc < BOARD_SIZE && x - 1 > -1 && this.grid[y + inc][x - 1] !== null && this.grid[y + inc][x - 1].color === color) {
+            pawnMoves.add(`${x - 1},${y + inc}`);
+        }
 
-            // En passant to the right 
-            if (y === 4 && x + 1 < BOARD_SIZE && this.grid[y][x + 1] !== null && this.grid[y][x + 1].type === 'pawn' && this.grid[y][x+1].color === 'b' && this.grid[y][x + 1].hasMovedTwoSpaces && this.grid[y + 1][x + 1] === null) {
-                pawnMoves.add(`${x + 1},${y + 1}`);
-            }
+        // En passant to the right 
+        if (y === enPassantRank && x + 1 < BOARD_SIZE && this.grid[y][x + 1] !== null && this.grid[y][x + 1].type === 'pawn' && this.grid[y][x + 1].color === 'b' && this.grid[y][x + 1].hasMovedTwoSpaces && this.grid[y + inc][x + 1] === null) {
+            pawnMoves.add(`${x + 1},${y + inc}`);
+        }
 
-            // En passant to the left
-            if (y === 4 && x - 1 > -1 && this.grid[y][x - 1] !== null && this.grid[y][x - 1].type === 'pawn' && this.grid[y][x - 1].color === 'b' && this.grid[y][x - 1].hasMovedTwoSpaces && this.grid[y + 1][x - 1] === null) {
-                pawnMoves.add(`${x - 1},${y + 1}`);
-            }
-        } else {
-            // Move one square forward
-            if (y - 1 >= 0 && this.grid[y - 1][x] === null) {
-                pawnMoves.add(`${x},${y - 1}`);
-            }
-
-            // Check for double move if pawn hasn't moved and the squares in front are empty
-            if (y - 2 >= 0 && this.grid[y - 1][x] === null && this.grid[y - 2][x] === null && !this.selectedPiece.hasMoved) {
-                pawnMoves.add(`${x},${y - 2}`);
-            }
-
-            // Capture diagonally to the right
-            if (y - 1 >= 0 && x + 1 < BOARD_SIZE && this.grid[y - 1][x + 1] !== null && this.grid[y - 1][x + 1].color === 'w') {
-                pawnMoves.add(`${x + 1},${y - 1}`);
-            }
-
-            // Capture diagonally to the left
-            if (y - 1 >= 0 && x - 1 >= 0 && this.grid[y - 1][x - 1] !== null && this.grid[y - 1][x - 1].color === 'w') {
-                pawnMoves.add(`${x - 1},${y - 1}`);
-            }
-
-            // En passant to the right
-            if (y === 3 && x + 1 < BOARD_SIZE && this.grid[y][x + 1] !== null && this.grid[y][x + 1].type === 'pawn' && this.grid[y][x + 1].color === 'w' && this.grid[y][x + 1].hasMovedTwoSpaces && this.grid[y - 1][x + 1] === null) {
-                pawnMoves.add(`${x + 1},${y - 1}`);
-            }
-
-            // En passant to the left
-            if (y === 3 && x - 1 >= 0 && this.grid[y][x - 1] !== null && this.grid[y][x - 1].type === 'pawn' && this.grid[y][x - 1].color === 'w' && this.grid[y][x - 1].hasMovedTwoSpaces && this.grid[y - 1][x - 1] === null) {
-                pawnMoves.add(`${x - 1},${y - 1}`);
-            }
+        // En passant to the left
+        if (y === enPassantRank && x - 1 > -1 && this.grid[y][x - 1] !== null && this.grid[y][x - 1].type === 'pawn' && this.grid[y][x - 1].color === 'b' && this.grid[y][x - 1].hasMovedTwoSpaces && this.grid[y + inc][x - 1] === null) {
+            pawnMoves.add(`${x - 1},${y + 1}`);
         }
 
         return pawnMoves;
