@@ -109,7 +109,8 @@ class Board {
             this.ctx.translate(pieceX + SQUARE_SIZE / 2, pieceY + SQUARE_SIZE / 2);
             this.ctx.rotate(Math.PI);
             this.ctx.drawImage(piece.img, -SQUARE_SIZE / 2, -SQUARE_SIZE / 2, SQUARE_SIZE, SQUARE_SIZE);
-        } else {
+        } 
+        else {
             this.ctx.drawImage(piece.img, pieceX, pieceY, SQUARE_SIZE, SQUARE_SIZE);
         }
 
@@ -176,6 +177,10 @@ class Board {
         const move = `${x},${y}`;
 
         if (validMoves.has(move)) {
+            if (this.selectedPiece.type === 'pawn') {
+                this.updatePawnState(move, this.selectedPiece.x, this.selectedPiece.y);
+            }
+
             this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
             this.drawBoardSquare(x, y);
             
@@ -185,28 +190,6 @@ class Board {
             this.grid[y][x] = this.selectedPiece;
 
             console.log(move);
-
-            if (this.selectedPiece.type === 'pawn') {
-                if (this.selectedPiece.color === 'w') {
-
-                    if (move === `${x},${y + 2}`) {
-                        this.selectedPiece.setHasMovedTwoSpaces(true);
-                    } else {
-                        this.selectedPiece.setHasMovedTwoSpaces(false);
-                    }
-
-                    this.selectedPiece.setHasMoved();
-                } else {
-
-                    if (move === `${x},${y - 2}`) {
-                        this.selectedPiece.setHasMovedTwoSpaces(true);
-                    } else {
-                        this.selectedPiece.setHasMovedTwoSpaces(false);
-                    }
-
-                    this.selectedPiece.setHasMoved();
-                }
-            }
         }
         else {
             this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
@@ -214,6 +197,31 @@ class Board {
         }
 
         this.selectedPiece = null;
+    }
+
+    updatePawnState(move, x, y) {
+        if (this.selectedPiece.color === 'w') {
+
+            if (move === `${x},${y + 2}`) {
+                this.selectedPiece.setHasMovedTwoSpaces(true);
+            }
+            else {
+                this.selectedPiece.setHasMovedTwoSpaces(false);
+            }
+
+            this.selectedPiece.setHasMoved();
+        } 
+        else {
+
+            if (move === `${x},${y - 2}`) {
+                this.selectedPiece.setHasMovedTwoSpaces(true);
+            }
+            else {
+                this.selectedPiece.setHasMovedTwoSpaces(false);
+            }
+
+            this.selectedPiece.setHasMoved();
+        }
     }
 
     getValidMoves() {
@@ -319,7 +327,60 @@ class Board {
     }
 
     getRookMoves() {
+        const rookMoves = new Set();
 
+        if (this.selectedPiece.color === 'w') {
+            this.rookMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y, rookMoves);
+        }
+        else {
+            this.rookMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y, rookMoves);
+        }
+
+        return rookMoves;
+    }
+
+    rookMovesLogic(color, x, y, rookMoves) {
+        const flags = Array(4).fill(true);
+
+        for (let inc = 1; inc < BOARD_SIZE; ++inc) {
+            
+            if (y + inc < BOARD_SIZE) {
+                if (flags[0] && (this.grid[y + inc][x] === null || this.grid[y + inc][x].color === color)) {
+                    rookMoves.add(`${x},${y + inc}`);
+                }
+                else if (flags[0] && this.grid[y + inc][x] !== null && this.grid[y + inc][x].color === this.selectedPiece.color) {
+                    flags[0] = false;
+                } 
+            }
+
+            if (x + inc < BOARD_SIZE) {
+                if (flags[1] && (this.grid[y][x + inc] === null || this.grid[y][x + inc].color === color)) {
+                    rookMoves.add(`${x + inc},${y}`);
+                }
+                else if (flags[1] && this.grid[y][x + inc] !== null && this.grid[y][x + inc].color === this.selectedPiece.color) {
+                    flags[1] = false;
+                } 
+            }
+
+            if (y - inc > -1) {
+                if (flags[2] && (this.grid[y - inc][x] === null || this.grid[y - inc][x].color === color)) {
+                    rookMoves.add(`${x},${y - inc}`);
+                }
+                else if (flags[2] && this.grid[y - inc][x] !== null && this.grid[y - inc][x].color === this.selectedPiece.color) {
+                    flags[2] = false;
+                } 
+            }
+
+            if (x - inc > -1) {
+                if (flags[3] && (this.grid[y][x - inc] === null || this.grid[y][x - inc].color === color)) {
+                    rookMoves.add(`${x - inc},${y}`);
+                }
+                else if (flags[3] && this.grid[y][x - inc] !== null && this.grid[y][x - inc].color === this.selectedPiece.color) {
+                    flags[3] = false;
+                } 
+            }
+        
+        }
     }
 
     getKnightMoves() {
@@ -327,7 +388,8 @@ class Board {
 
         if (this.selectedPiece.color === 'w') {
             this.knightMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y, knightMoves);
-        } else {
+        } 
+        else {
             this.knightMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y, knightMoves);
         }
 
@@ -382,6 +444,7 @@ class Board {
                 knightMoves.add(`${x - 2},${y - 1}`);
             }
         }
+
     }
 
     getBishopMoves() {
@@ -389,7 +452,8 @@ class Board {
 
         if (this.selectedPiece.color === 'w') {
             this.bishopMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y, bishopMoves);
-        } else {
+        } 
+        else {
             this.bishopMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y, bishopMoves);
         }
 
