@@ -329,16 +329,19 @@ class Board {
 
     getRookMoves() {
         if (this.selectedPiece.color === 'w') {
-            return this.rookMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y);
+            return this.rookMovesLogic('b');
         }
         
-        return this.rookMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y);
+        return this.rookMovesLogic('w');
     }
 
-    rookMovesLogic(color, x, y) {
+    rookMovesLogic(color) {
         const rookMoves = new Set();
 
         const flags = Array(4).fill(true);
+
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
 
         for (let inc = 1; inc < BOARD_SIZE; ++inc) {
             
@@ -385,14 +388,17 @@ class Board {
 
     getKnightMoves() {
         if (this.selectedPiece.color === 'w') {
-            return this.knightMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y);
+            return this.knightMovesLogic('b');
         } 
         
-        return this.knightMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y);
+        return this.knightMovesLogic('w');
     }
 
-    knightMovesLogic(color, x, y) {
+    knightMovesLogic(color) {
         const knightMoves = new Set();
+
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
 
         if (y + 2 < BOARD_SIZE && x + 1 < BOARD_SIZE) {
             if (this.grid[y + 2][x + 1] === null || this.grid[y + 2][x + 1].color === color) {
@@ -447,16 +453,19 @@ class Board {
 
     getBishopMoves() {
         if (this.selectedPiece.color === 'w') {
-            this.bishopMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y);
+            this.bishopMovesLogic('b');
         } 
         
-        return this.bishopMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y);
+        return this.bishopMovesLogic('w');
     }
 
-    bishopMovesLogic(color, x, y) {
+    bishopMovesLogic(color) {
         const bishopMoves = new Set();
 
         const flags = Array(4).fill(true);
+
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
         
         for (let inc = 1; inc < BOARD_SIZE; ++inc) {
             
@@ -503,16 +512,19 @@ class Board {
 
     getQueenMoves() {
         if (this.selectedPiece.color === 'w') {
-            return this.queenMovesLogic('b', this.selectedPiece.x, this.selectedPiece.y);
+            return this.queenMovesLogic('b');
         }
         
-        return this.queenMovesLogic('w', this.selectedPiece.x, this.selectedPiece.y);
+        return this.queenMovesLogic('w');
     }
 
-    queenMovesLogic(color, x, y) {
+    queenMovesLogic(color) {
         const queenMoves = new Set();
 
         const flags = Array(8).fill(true);
+
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
         
         for (let inc = 1; inc < BOARD_SIZE; ++inc) {
             
@@ -594,7 +606,68 @@ class Board {
     }
 
     getKingMoves() {
+        if (this.selectedPiece.color === 'w') {
+            return this.kingMovesLogic('b');
+        }
 
+        return this.kingMovesLogic('w')
+    }
+
+    kingMovesLogic(color) {
+        const kingMoves = new Set();
+
+        const x = this.selectedPiece.x;
+        const y = this.selectedPiece.y;
+
+        if (y + 1 < BOARD_SIZE) {
+            if (this.grid[y + 1][x] === null || this.grid[y + 1][x].color === color) {
+                kingMoves.add(`${x},${y + 1}`);
+            }
+        }
+
+        if (x + 1 < BOARD_SIZE) {
+            if (this.grid[y][x + 1] === null || this.grid[y][x + 1].color === color) {
+                kingMoves.add(`${x + 1},${y}`);
+            }
+        }
+
+        if (y - 1 > -1) {
+            if (this.grid[y - 1][x] === null || this.grid[y - 1][x].color === color) {
+                kingMoves.add(`${x},${y - 1}`);
+            }
+        }
+
+        if (x - 1 > -1) {
+            if (this.grid[y][x - 1] === null || this.grid[y][x - 1].color === color) {
+                kingMoves.add(`${x - 1},${y}`);
+            }
+        }
+
+        if (y + 1 < BOARD_SIZE && x + 1 < BOARD_SIZE) {
+            if (this.grid[y + 1][x + 1] === null || this.grid[y + 1][x + 1] === color) {
+                kingMoves.add(`${x + 1},${y + 1}`);
+            }
+        }
+
+        if (y - 1 > -1 && x - 1 > -1) {
+            if (this.grid[y - 1][x - 1] === null || this.grid[y - 1][x - 1] === color) {
+                kingMoves.add(`${x - 1},${y - 1}`);
+            }
+        }
+
+        if (y + 1 < BOARD_SIZE && x - 1 > -1) {
+            if (this.grid[y + 1][x - 1] === null || this.grid[y + 1][x - 1] === color) {
+                kingMoves.add(`${x - 1},${y + 1}`);
+            }
+        }
+
+        if (y - 1 > -1 && x + 1 < BOARD_SIZE) {
+            if (this.grid[y - 1][x + 1] === null || this.grid[y - 1][x + 1] === color) {
+                kingMoves.add(`${x + 1},${y - 1}`);
+            }
+        }
+
+        return kingMoves;
     }
 
     initWhitePieces() {
