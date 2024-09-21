@@ -47,23 +47,53 @@ class CheckMates {
 
 class Board {
     constructor(canvas, ctx, color) {
-        this.grid = this.initGrid();
         this.canvas = canvas;
         this.ctx = ctx;
         this.color = color;
+        
+        this.whitePieces = this.initWhitePieces();
+        this.blackPieces =this.initBlackPieces();
+        this.grid = this.initGrid();
+        
         this.selectedPiece = null;
+        this.whiteCheck = false;
+        this.blackCheck = false;
+        this.whiteKingPos = [4, 0];
+        this.blackKingPos = [4, 7];
+    }
+
+    setWhiteCheck(flag) {
+        this.whiteCheck = flag;
+    }
+
+    setBlackCheck(flag) {
+        this.blackCheck = flag;
+    }
+
+    updateWhiteKingPos(x, y) {
+        this.whiteKingPos = [x, y];
+    }
+
+    updateBlackKingPos(x, y) {
+        this.blackKingPos = [x, y];
+    }
+
+    getWhiteKingPos() {
+        return this.whiteKingPos;
+    }
+
+    getBlackKingPos() {
+        return this.blackKingPos;
     }
 
     initGrid() {
         const grid = Array.from({ length: 8 }, () => Array(8).fill(null));
         
-        const whitePieces = this.initWhitePieces();
-        whitePieces.forEach((piece) => {
+        this.whitePieces.forEach((piece) => {
             grid[piece.y][piece.x] = piece;
         });
 
-        const blackPieces = this.initBlackPieces();
-        blackPieces.forEach((piece) => {
+        this.blackPieces.forEach((piece) => {
             grid[piece.y][piece.x] = piece;
         })
 
@@ -82,7 +112,6 @@ class Board {
         for (let row = 0; row < 2; ++row) {
             for (let col = 0; col < BOARD_SIZE; ++col) {
                 const piece = this.grid[row][col];
-                console.log(piece);
                 piece.loadImage(() => this.drawPiece(piece));
             }
         }
@@ -173,35 +202,120 @@ class Board {
         this.drawPiece(piece);
     }
 
+    removePieceHighlight() {
+        this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
+        this.drawPiece(this.selectedPiece);
+    }
+
     movePiece(x, y) {
         const validMoves = this.getValidMoves();
         const move = `${x},${y}`;
 
         if (validMoves.has(move)) {
+            // Handle checks first
+            if (!this.handleCheck(move, x, y)) {
+                this.removePieceHighlight();
+                this.selectedPiece = null;
+                return;
+            }
+
             this.updatePieceState(move);
 
+            // Update canvas and grid
             this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
+            this.grid[this.selectedPiece.y][this.selectedPiece.x] = null;
 
+            // Remove piece and update board
             if (this.grid[y][x] !== null) {
                 this.drawBoardSquare(x, y);
-            }
-            
-            this.selectedPiece.updatePos(x, y);
-
-            if (this.grid[y][x] !== null) {
                 this.grid[y][x].setRemoved();
             }
 
-            this.grid[this.selectedPiece.y][this.selectedPiece.x] = null;
+            // Update piece position, canvas, and grid
+            this.selectedPiece.updatePos(x, y);
             this.drawPiece(this.selectedPiece);
             this.grid[y][x] = this.selectedPiece;
+
+            // Not possible to be in check
+            this.setWhiteCheck(false);
+            this.setBlackCheck(false);
+
+            // Check if piece is now in check.
+            const newValidMoves = this.getValidMoves();
+            
+            if (this.selectedPiece.color === 'w') {
+                const [bKingX, bKingY] = this.getBlackKingPos();
+
+                // Check for black king pos in new moves.
+                if (newValidMoves.has(`${bKingX},${bKingY}`)) {
+                    this.setBlackCheck(true);
+                }
+            }
+            else {
+                const [wKingX, wKingY] = this.getWhiteKingPos();
+
+                // Check for white king pos in new moves.
+                if (newValidMoves.has(`${wKingX},${wKingY}`)) {
+                    this.setWhiteCheck(true);
+                }
+            }
         }
         else {
-            this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
-            this.drawPiece(this.selectedPiece);
+            this.removePieceHighlight();
         }
 
         this.selectedPiece = null;
+    }
+
+    handleCheck(move, x, y) {
+        if (this.selectedPiece.type === 'king') {
+            if (this.selectedPiece.color === 'w') {
+                return this.checkKingMove(move, x, y, this.blackPieces);
+            }
+
+            return this.checkKingMove(move, x, y, this.whitePieces);
+        }
+
+        if (this.selectedPiece.color === 'b' && this.blackCheck && this.selectedPiece !== 'king') {
+            return false;
+        } 
+
+        if (this.selectedPiece.color === 'w' && this.white && this.selectedPiece !== 'king') {
+            return false;
+        }
+
+        return true;
+    }
+
+    checkKingMove(move, x, y, pieces) {
+        let result = true;
+
+        // Simulate the move
+        const takenPiece = this.grid[y][x];
+        this.grid[y][x] = this.selectedPiece;
+
+        const [prevX, prevY] = this.selectedPiece.getPos();
+        const prevPiece = this.selectedPiece;
+        this.grid[prevY][prevX] = null;
+        
+        // Check the moves of each opposing piece
+        pieces.forEach((piece) => {
+            if (!piece.removed) {
+                this.selectedPiece = piece;
+                const newValidMoves = this.getValidMoves();
+
+                if (newValidMoves.has(move)) {
+                    result = false;
+                }
+            }
+        });
+        
+        // Revert to previous state
+        this.selectedPiece = prevPiece;
+        this.grid[prevY][prevX] = prevPiece;
+        this.grid[y][x] = takenPiece;
+
+        return result;
     }
 
     updatePieceState(move) {
@@ -210,6 +324,9 @@ class Board {
                 this.updatePawnState(move);
                 break;
             case 'king':
+                this.updateKingState(move);
+                break;
+            case 'rook':
                 break;
             default:
                 break;
@@ -242,6 +359,23 @@ class Board {
 
             this.selectedPiece.setHasMoved();
         }
+    }
+
+    updateKingState(move) {
+        const [x, y] = this.selectedPiece.getPos();
+        
+        if (this.selectedPiece.color === 'w') {
+            this.updateWhiteKingPos(x, y);
+        }
+        else {
+            this.updateBlackKingPos(x, y);
+        }
+
+        this.selectedPiece.setHasMoved();
+    }
+
+    updateRookState() {
+        this.selectedPiece.setHasMoved();
     }
 
     getValidMoves() {
@@ -447,7 +581,7 @@ class Board {
 
     getBishopMoves() {
         if (this.selectedPiece.color === 'w') {
-            this.bishopMovesLogic('b');
+            return this.bishopMovesLogic('b');
         } 
         
         return this.bishopMovesLogic('w');
@@ -671,14 +805,14 @@ class Board {
             pieces.push(new Pawn('w', col, 1));
         }
     
-        pieces.push(new Rook('rook', 'w', 0, 0));
-        pieces.push(new Rook('rook', 'w', 7, 0));
+        pieces.push(new Rook('w', 0, 0));
+        pieces.push(new Rook('w', 7, 0));
         pieces.push(new Piece('knight', 'w', 1, 0));
         pieces.push(new Piece('knight', 'w', 6, 0));
         pieces.push(new Piece('bishop', 'w', 2, 0));
         pieces.push(new Piece('bishop', 'w', 5, 0));
         pieces.push(new Piece('queen', 'w', 3, 0));
-        pieces.push(new King('king', 'w', 4, 0));
+        pieces.push(new King('w', 4, 0));
 
         return pieces;
     }
@@ -690,14 +824,14 @@ class Board {
             pieces.push(new Pawn('b', col, 6));
         }
 
-        pieces.push(new Rook('rook', 'b', 0, 7));
-        pieces.push(new Rook('rook', 'b', 7, 7));
+        pieces.push(new Rook('b', 0, 7));
+        pieces.push(new Rook('b', 7, 7));
         pieces.push(new Piece('knight', 'b', 1, 7));
         pieces.push(new Piece('knight', 'b', 6, 7));
         pieces.push(new Piece('bishop', 'b', 2, 7));
         pieces.push(new Piece('bishop', 'b', 5, 7));
-        pieces.push(new Piece('queen', 'b', 4, 7));
-        pieces.push(new King('king', 'b', 3, 7));
+        pieces.push(new Piece('queen', 'b', 3, 7));
+        pieces.push(new King('b', 4, 7));
 
         return pieces;
     }
@@ -767,11 +901,6 @@ class King extends Piece {
     constructor(color, x, y) {
         super('king', color, x, y);
         this.hasMoved = false;
-        this.inCheck = false;
-    }
-
-    setInCheck(flag) {
-        this.inCheck = flag;
     }
 
     setHasMoved() {
