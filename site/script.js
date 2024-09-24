@@ -55,6 +55,7 @@ class Board {
         this.blackPieces =this.initBlackPieces();
         this.grid = this.initGrid();
         
+        this.firstPieceDraw = true;
         this.selectedPiece = null;
         this.whiteCheck = false;
         this.blackCheck = false;
@@ -211,6 +212,18 @@ class Board {
         const validMoves = this.getValidMoves();
         const move = `${x},${y}`;
 
+        // handle castling and check for checks
+        if (this.selectedPiece.type === 'king') {
+            if (this.handleCastling(move)) {
+                return;
+            }
+            else if (!this.handleCheck(move, x, y)) {
+                this.removePieceHighlight();
+                this.selectedPiece = null;
+                return;
+            }
+        }
+
         if (validMoves.has(move)) {
             // Handle checks first
             if (!this.handleCheck(move, x, y)) {
@@ -267,13 +280,91 @@ class Board {
         this.selectedPiece = null;
     }
 
+    handleCastling(move) {
+        const [x, y] = this.selectedPiece.getPos();
+
+        if (this.selectedPiece.hasMoved) {
+            return false;
+        }
+
+        if (this.selectedPiece.color === 'w') {
+            if (this.whiteCheck) {
+                return false;
+            }
+        } 
+        else {
+            if (this.blackCheck) {
+                return false;
+            }
+        }
+
+        if (move === `${x + 2},${y}`) {
+            if (this.checkCastlingPieces(y, x + 1, x + 3, 1)) {
+                this.moveCastlingPieces(x, x + 2, x + 3, x + 1, y);
+                return true;
+            }
+        }
+        else if (move === `${x - 2},${y}`) {
+            if (this.checkCastlingPieces(y, x - 1, x - 4, -1)) {
+                this.moveCastlingPieces(x, x - 2, x - 4, x - 1, y);   
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    checkCastlingPieces(y, start, bound, inc) {
+        for (let x = start; x < bound; x += inc) {            
+            if (this.grid[y][x] !== null) {
+                return false;
+            }
+        }
+
+        if (this.grid[y][bound] !== null) {
+            const piece = this.grid[y][bound];
+
+            if (piece.type !== 'rook' || piece.hasMoved) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    moveCastlingPieces(kingX, newKingX, rookX, newRookX, y) {
+        const king = this.grid[y][kingX];
+        const rook = this.grid[y][rookX];
+
+        // Update king position and drawing
+        this.grid[y][kingX] = null;
+        this.drawBoardSquare(kingX, y);
+        king.updatePos(newKingX, y);
+        this.grid[y][newKingX] = king;
+        this.drawPiece(king);
+
+        // Update rook position and drawing
+        this.grid[y][rookX] = null;
+        this.drawBoardSquare(rookX, y);
+        rook.updatePos(newRookX, y);
+        this.grid[y][newRookX] = rook;
+        this.drawPiece(rook);
+
+        // The king and rook have moved.
+        king.setHasMoved();
+        rook.setHasMoved();
+
+
+        return true;
+    }
+
     handleCheck(move, x, y) {
         if (this.selectedPiece.type === 'king') {
             if (this.selectedPiece.color === 'w') {
-                return this.checkKingMove(move, x, y, this.blackPieces);
+                return this.handleKingMove(move, x, y, this.blackPieces);
             }
 
-            return this.checkKingMove(move, x, y, this.whitePieces);
+            return this.handleKingMove(move, x, y, this.whitePieces);
         }
 
         if (this.selectedPiece.color === 'b' && this.blackCheck && this.selectedPiece !== 'king') {
@@ -287,7 +378,7 @@ class Board {
         return true;
     }
 
-    checkKingMove(move, x, y, pieces) {
+    handleKingMove(move, x, y, pieces) {
         let result = true;
 
         // Simulate the move
@@ -327,6 +418,7 @@ class Board {
                 this.updateKingState(move);
                 break;
             case 'rook':
+                this.updateRookState();
                 break;
             default:
                 break;
