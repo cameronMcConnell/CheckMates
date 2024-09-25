@@ -10,13 +10,21 @@ const COLUMN_TRANSLATIONS = {
     5: 'F',
     6: 'G',
     7: 'H',
+    'A': 0,
+    'B': 1,
+    'C': 2,
+    'D': 3,
+    'E': 4,
+    'F': 5,
+    'G': 6,
+    'H': 7,
 };
 
 class CheckMates {
-    constructor(url, canvas, ctx) {
-        this.webSocket = new WebSocket(url);
-        this.color = 'w';
-        this.board = this.initBoard(canvas, ctx, this.color);
+    constructor(color, url) {
+        this.color = color;
+        this.webSocket = this.initWebSocket(url);
+        this.board = this.initBoard();
         this.turn = true;
     }
 
@@ -28,13 +36,22 @@ class CheckMates {
         this.turn != this.turn;
     }
 
-    initBoard(canvas, ctx, color) {
-        if (color === 'w') {
+    initWebSocket(url) {
+        const webSocket = new WebSocket(url);
+
+        return webSocket;
+    }
+
+    initBoard() {
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        if (this.color === 'w') {
             ctx.translate(canvas.width, canvas.height);
             ctx.rotate(Math.PI);
         }
 
-        let board = new Board(canvas, ctx, color);
+        let board = new Board(canvas, ctx, this.color);
 
         board.drawBoard();
         board.loadPieces();
@@ -55,10 +72,12 @@ class Board {
         this.blackPieces =this.initBlackPieces();
         this.grid = this.initGrid();
         
-        this.firstPieceDraw = true;
         this.selectedPiece = null;
         this.whiteCheck = false;
         this.blackCheck = false;
+        this.whiteCheckmate = false;
+        this.blackCheckmate = false;
+        this.gameDraw = false;
         this.whiteKingPos = [4, 0];
         this.blackKingPos = [4, 7];
     }
@@ -69,6 +88,18 @@ class Board {
 
     setBlackCheck(flag) {
         this.blackCheck = flag;
+    }
+
+    setWhiteCheckmate() {
+        this.whiteCheckmate = true;
+    }
+
+    setBlackCheckmate() {
+        this.blackCheckmate = true;
+    }
+
+    setGameDraw() {
+        this.gameDraw = true;
     }
 
     updateWhiteKingPos(x, y) {
@@ -262,6 +293,24 @@ class Board {
                 // Check for black king pos in new moves.
                 if (newValidMoves.has(`${bKingX},${bKingY}`)) {
                     this.setBlackCheck(true);
+
+                    // Get king and check each valid valid move.
+                    const bKing = this.grid[bKingY][bKingX];
+                    this.selectedPiece = bKing;
+
+                    const bKingValidMoves = this.getValidMoves();
+
+                    for (const bKingMove of bKingValidMoves) {
+                        const [bKingMoveX, bKingMoveY] = bKingMove.split(',');
+
+                        if (!this.handleCheck(bKingMove, Number(bKingMoveX), Number(bKingMoveY))) {
+                            this.setBlackCheckmate();
+                            break;
+                        }
+                    }
+                }
+                else {
+                    this.checkForDraw(this.whitePieces);
                 }
             }
             else {
@@ -270,6 +319,23 @@ class Board {
                 // Check for white king pos in new moves.
                 if (newValidMoves.has(`${wKingX},${wKingY}`)) {
                     this.setWhiteCheck(true);
+
+                    const wKing = this.grid[wKingY][wKingX];
+                    this.selectedPiece = wKing;
+
+                    const wKingValidMoves = this.getValidMoves();
+
+                    for (const wKingMove of wKingValidMoves) {
+                        const [wKingMoveX, wKingMoveY] = wKingMove.split(',');
+
+                        if(!this.handleCheck(wKingMove, Number(wKingMoveX), Number(wKingMoveY))) {
+                            this.setWhiteCheckmate();
+                            break;
+                        }
+                    }
+                }
+                else {
+                    this.checkForDraw(this.blackPieces);
                 }
             }
         }
@@ -278,6 +344,21 @@ class Board {
         }
 
         this.selectedPiece = null;
+    }
+
+    checkForDraw(pieces) {
+        for (const piece of pieces) {
+            if (!piece.removed) {
+                this.selectedPiece = piece;
+                const validMoves = this.getValidMoves();
+
+                if (validMoves.size !== 0) {
+                    return;
+                }
+            }
+        }
+
+        this.setGameDraw();
     }
 
     handleCastling(move) {
@@ -1001,8 +1082,5 @@ class King extends Piece {
 }
 
 window.addEventListener('load', () => {
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-
-    const checkMates = new CheckMates('ws:8000', canvas, ctx);
+    const checkMates = new CheckMates('w', 'ws:8000');
 });
