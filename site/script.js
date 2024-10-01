@@ -22,14 +22,10 @@ const COLUMN_TRANSLATIONS = {
 
 class CheckMates {
     constructor(color, url) {
-        this.color = color;
+        this.mainPlayerColor = color;
         this.webSocket = this.initWebSocket(url);
         this.board = this.initBoard();
         this.turn = true;
-    }
-
-    setColor(color) {
-        this.color = color;
     }
 
     updateTurn() {
@@ -46,12 +42,12 @@ class CheckMates {
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        if (this.color === 'w') {
+        if (this.mainPlayerColor === 'w') {
             ctx.translate(canvas.width, canvas.height);
             ctx.rotate(Math.PI);
         }
 
-        let board = new Board(canvas, ctx, this.color);
+        let board = new Board(canvas, ctx, this.mainPlayerColor);
 
         board.drawBoard();
         board.loadPieces();
@@ -67,10 +63,13 @@ class Board {
         this.canvas = canvas;
         this.ctx = ctx;
         this.color = color;
+        this.mainPlayerColor = color;
         
         this.whitePieces = this.initWhitePieces();
         this.blackPieces =this.initBlackPieces();
         this.grid = this.initGrid();
+
+        this.localPlay = true;
         
         this.selectedPiece = null;
         this.whiteCheck = false;
@@ -80,6 +79,10 @@ class Board {
         this.gameDraw = false;
         this.whiteKingPos = [4, 0];
         this.blackKingPos = [4, 7];
+    }
+
+    switchColor() {
+        this.color === 'w' ? this.color = 'b' : this.color = 'w';
     }
 
     setWhiteCheck(flag) {
@@ -168,12 +171,24 @@ class Board {
         const pieceY = piece.y * SQUARE_SIZE;
 
         if (this.color === 'w') {
-            this.ctx.translate(pieceX + SQUARE_SIZE / 2, pieceY + SQUARE_SIZE / 2);
-            this.ctx.rotate(Math.PI);
-            this.ctx.drawImage(piece.img, -SQUARE_SIZE / 2, -SQUARE_SIZE / 2, SQUARE_SIZE, SQUARE_SIZE);
+            if (this.mainPlayerColor !== 'b') {
+                this.ctx.translate(pieceX + SQUARE_SIZE / 2, pieceY + SQUARE_SIZE / 2);
+                this.ctx.rotate(Math.PI);
+                this.ctx.drawImage(piece.img, -SQUARE_SIZE / 2, -SQUARE_SIZE / 2, SQUARE_SIZE, SQUARE_SIZE);
+            }
+            else {
+                this.ctx.drawImage(piece.img, pieceX, pieceY, SQUARE_SIZE, SQUARE_SIZE);
+            }
         } 
         else {
-            this.ctx.drawImage(piece.img, pieceX, pieceY, SQUARE_SIZE, SQUARE_SIZE);
+            if (this.mainPlayerColor === 'w') {
+                this.ctx.translate(pieceX + SQUARE_SIZE / 2, pieceY + SQUARE_SIZE / 2);
+                this.ctx.rotate(Math.PI);
+                this.ctx.drawImage(piece.img, -SQUARE_SIZE / 2, -SQUARE_SIZE / 2, SQUARE_SIZE, SQUARE_SIZE);
+            }
+            else {
+                this.ctx.drawImage(piece.img, pieceX, pieceY, SQUARE_SIZE, SQUARE_SIZE);
+            }
         }
 
         this.ctx.restore();
@@ -185,7 +200,7 @@ class Board {
         let x = event.clientX - rect.left;
         let y = event.clientY - rect.top;
 
-        if (this.color === 'w') {
+        if (this.mainPlayerColor === 'w') {
             x = this.canvas.width - x;
             y = this.canvas.height - y;
         }
@@ -227,43 +242,24 @@ class Board {
         this.movePiece(clickedX, clickedY);
     }
 
-    highlightPiece(x, y, piece) {
-        this.ctx.fillStyle = '#FFD966';
-        this.ctx.fillRect(x * SQUARE_SIZE, y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
-        this.selectedPiece = piece;
-        this.drawPiece(piece);
-    }
-
-    removePieceHighlight() {
-        this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
-        this.drawPiece(this.selectedPiece);
-    }
-
     movePiece(x, y) {
-        const validMoves = this.getValidMoves();
+        const validMoves = this.getValidMoves(this.selectedPiece);
         const move = `${x},${y}`;
 
-        // handle castling and check for checks
-        if (this.selectedPiece.type === 'king') {
-            if (this.handleCastling(move)) {
-                return;
-            }
-            else if (!this.handleCheck(move, x, y)) {
-                this.removePieceHighlight();
-                this.selectedPiece = null;
-                return;
-            }
+        if (!this.handleCheck()) {
+            this.resetSelectedPiece();
+            return;
         }
 
         if (validMoves.has(move)) {
-            // Handle checks first
-            if (!this.handleCheck(move, x, y)) {
-                this.removePieceHighlight();
-                this.selectedPiece = null;
-                return;
+            if (this.selectedPiece.type === 'king') {
+                if (!this.handleKingMove(move, x, y)) {
+                    this.resetSelectedPiece();
+                    return;
+                }
             }
 
-            this.updatePieceState(move);
+            this.updatePieceState(this.selectedPiece, move);
 
             // Update canvas and grid
             this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
@@ -280,63 +276,8 @@ class Board {
             this.drawPiece(this.selectedPiece);
             this.grid[y][x] = this.selectedPiece;
 
-            // Not possible to be in check
-            this.setWhiteCheck(false);
-            this.setBlackCheck(false);
-
-            // Check if piece is now in check.
-            const newValidMoves = this.getValidMoves();
-            
-            if (this.selectedPiece.color === 'w') {
-                const [bKingX, bKingY] = this.getBlackKingPos();
-
-                // Check for black king pos in new moves.
-                if (newValidMoves.has(`${bKingX},${bKingY}`)) {
-                    this.setBlackCheck(true);
-
-                    // Get king and check each valid valid move.
-                    const bKing = this.grid[bKingY][bKingX];
-                    this.selectedPiece = bKing;
-
-                    const bKingValidMoves = this.getValidMoves();
-
-                    for (const bKingMove of bKingValidMoves) {
-                        const [bKingMoveX, bKingMoveY] = bKingMove.split(',');
-
-                        if (!this.handleCheck(bKingMove, Number(bKingMoveX), Number(bKingMoveY))) {
-                            this.setBlackCheckmate();
-                            break;
-                        }
-                    }
-                }
-                else {
-                    this.checkForDraw(this.whitePieces);
-                }
-            }
-            else {
-                const [wKingX, wKingY] = this.getWhiteKingPos();
-
-                // Check for white king pos in new moves.
-                if (newValidMoves.has(`${wKingX},${wKingY}`)) {
-                    this.setWhiteCheck(true);
-
-                    const wKing = this.grid[wKingY][wKingX];
-                    this.selectedPiece = wKing;
-
-                    const wKingValidMoves = this.getValidMoves();
-
-                    for (const wKingMove of wKingValidMoves) {
-                        const [wKingMoveX, wKingMoveY] = wKingMove.split(',');
-
-                        if(!this.handleCheck(wKingMove, Number(wKingMoveX), Number(wKingMoveY))) {
-                            this.setWhiteCheckmate();
-                            break;
-                        }
-                    }
-                }
-                else {
-                    this.checkForDraw(this.blackPieces);
-                }
+            if (this.localPlay) {
+                this.switchColor();
             }
         }
         else {
@@ -346,19 +287,26 @@ class Board {
         this.selectedPiece = null;
     }
 
-    checkForDraw(pieces) {
-        for (const piece of pieces) {
-            if (!piece.removed) {
-                this.selectedPiece = piece;
-                const validMoves = this.getValidMoves();
+    highlightPiece(x, y, piece) {
+        this.ctx.fillStyle = '#FFD966';
+        this.ctx.fillRect(x * SQUARE_SIZE, y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+        this.selectedPiece = piece;
+        this.drawPiece(piece);
+    }
 
-                if (validMoves.size !== 0) {
-                    return;
-                }
-            }
-        }
+    removePieceHighlight() {
+        this.drawBoardSquare(this.selectedPiece.x, this.selectedPiece.y);
+        this.drawPiece(this.selectedPiece);
+    }
 
-        this.setGameDraw();
+    resetSelectedPiece() {
+        this.removePieceHighlight();
+        this.selectedPiece = null;
+    }
+
+    parseMoveForPos(move) {
+        const [x, y] = move.split(',');
+        return [Number(x), Number(y)];
     }
 
     handleCastling(move) {
@@ -372,35 +320,62 @@ class Board {
             if (this.whiteCheck) {
                 return false;
             }
+
+            if (move === `${x + 2},${y}`) {
+                if (this.checkCastlingPieces(y, x + 1, x + 3, 1, this.blackPieces)) {
+                    this.moveCastlingPieces(x, x + 2, x + 3, x + 1, y);
+                    return true;
+                }
+            }
+            else if (move === `${x - 2},${y}`) {
+                if (this.checkCastlingPieces(y, x - 1, x - 4, -1, this.blackPieces)) {
+                    this.moveCastlingPieces(x, x - 2, x - 4, x - 1, y);   
+                    return true;
+                }
+            }
         } 
         else {
             if (this.blackCheck) {
                 return false;
             }
-        }
 
-        if (move === `${x + 2},${y}`) {
-            if (this.checkCastlingPieces(y, x + 1, x + 3, 1)) {
-                this.moveCastlingPieces(x, x + 2, x + 3, x + 1, y);
-                return true;
+            if (move === `${x + 2},${y}`) {
+                if (this.checkCastlingPieces(y, x + 1, x + 3, 1, this.whitePieces)) {
+                    this.moveCastlingPieces(x, x + 2, x + 3, x + 1, y);
+                    return true;
+                }
             }
-        }
-        else if (move === `${x - 2},${y}`) {
-            if (this.checkCastlingPieces(y, x - 1, x - 4, -1)) {
-                this.moveCastlingPieces(x, x - 2, x - 4, x - 1, y);   
-                return true;
+            else if (move === `${x - 2},${y}`) {
+                if (this.checkCastlingPieces(y, x - 1, x - 4, -1, this.whitePieces)) {
+                    this.moveCastlingPieces(x, x - 2, x - 4, x - 1, y);   
+                    return true;
+                }
             }
         }
 
         return false;
     }
 
-    checkCastlingPieces(y, start, bound, inc) {
+    checkCastlingPieces(y, start, bound, inc, pieces) {
+        const prevSelectedPiece = this.selectedPiece;
+        
         for (let x = start; x < bound; x += inc) {            
             if (this.grid[y][x] !== null) {
                 return false;
             }
+
+            for (const piece of pieces) {
+                this.selectedPiece = piece;
+                const validMoves = this.getValidMoves();
+
+                if (validMoves.has(`${x},${y}`)) {
+                    this.selectedPiece = prevSelectedPiece;
+                    return false;
+                }
+            }
         }
+
+        this.selectedPiece = prevSelectedPiece;
 
         if (this.grid[y][bound] !== null) {
             const piece = this.grid[y][bound];
@@ -435,19 +410,10 @@ class Board {
         king.setHasMoved();
         rook.setHasMoved();
 
-
         return true;
     }
 
-    handleCheck(move, x, y) {
-        if (this.selectedPiece.type === 'king') {
-            if (this.selectedPiece.color === 'w') {
-                return this.handleKingMove(move, x, y, this.blackPieces);
-            }
-
-            return this.handleKingMove(move, x, y, this.whitePieces);
-        }
-
+    handleCheck() {
         if (this.selectedPiece.color === 'b' && this.blackCheck && this.selectedPiece !== 'king') {
             return false;
         } 
@@ -459,8 +425,16 @@ class Board {
         return true;
     }
 
-    handleKingMove(move, x, y, pieces) {
+    handleKingMove(move, x, y) {        
         let result = true;
+        let pieces;
+
+        if (this.selectedPiece.color === 'w') {
+            pieces = this.blackPieces;
+        }
+        else {
+            pieces = this.whitePieces;
+        }
 
         // Simulate the move
         const takenPiece = this.grid[y][x];
@@ -473,15 +447,14 @@ class Board {
         // Check the moves of each opposing piece
         pieces.forEach((piece) => {
             if (!piece.removed) {
-                this.selectedPiece = piece;
-                const newValidMoves = this.getValidMoves();
+                const newValidMoves = this.getValidMoves(piece);
 
                 if (newValidMoves.has(move)) {
                     result = false;
                 }
             }
         });
-        
+
         // Revert to previous state
         this.selectedPiece = prevPiece;
         this.grid[prevY][prevX] = prevPiece;
@@ -490,118 +463,105 @@ class Board {
         return result;
     }
 
-    updatePieceState(move) {
-        switch (this.selectedPiece.type) {
+    updatePieceState(piece, move) {
+        switch (piece.type) {
             case 'pawn':
-                this.updatePawnState(move);
+                this.updatePawnState(piece, move);
                 break;
             case 'king':
-                this.updateKingState(move);
+                this.updateKingState(piece);
                 break;
             case 'rook':
-                this.updateRookState();
+                this.updateRookState(piece);
                 break;
             default:
                 break;
         }
     }
 
-    updatePawnState(move) {
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+    updatePawnState(piece, move) {
+        const [x, y] = piece.getPos();
 
-        if (this.selectedPiece.color === 'w') {
+        if (piece.color === 'w') {
 
             if (move === `${x},${y + 2}`) {
-                this.selectedPiece.setHasMovedTwoSpaces(true);
+                piece.setHasMovedTwoSpaces(true);
             }
             else {
-                this.selectedPiece.setHasMovedTwoSpaces(false);
+                piece.setHasMovedTwoSpaces(false);
             }
 
-            this.selectedPiece.setHasMoved();
+            piece.setHasMoved();
         } 
         else {
 
             if (move === `${x},${y - 2}`) {
-                this.selectedPiece.setHasMovedTwoSpaces(true);
+                piece.setHasMovedTwoSpaces(true);
             }
             else {
-                this.selectedPiece.setHasMovedTwoSpaces(false);
+                piece.setHasMovedTwoSpaces(false);
             }
 
-            this.selectedPiece.setHasMoved();
+            piece.setHasMoved();
         }
     }
 
-    updateKingState(move) {
-        const [x, y] = this.selectedPiece.getPos();
+    updateKingState(piece) {
+        const [x, y] = piece.getPos();
         
-        if (this.selectedPiece.color === 'w') {
+        if (piece.color === 'w') {
             this.updateWhiteKingPos(x, y);
         }
         else {
             this.updateBlackKingPos(x, y);
         }
 
-        this.selectedPiece.setHasMoved();
+        this.piece.setHasMoved();
     }
 
-    updateRookState() {
-        this.selectedPiece.setHasMoved();
+    updateRookState(piece) {
+        this.piece.setHasMoved();
     }
 
-    getValidMoves() {
-        let validMoves;
-
-        switch (this.selectedPiece.type) {
+    getValidMoves(piece) {
+        switch (piece.type) {
             case 'pawn':
-                validMoves = this.getPawnMoves();
-                break;
+                return this.getPawnMoves(piece);
             case 'rook':
-                validMoves = this.getRookMoves();
-                break;
+                return this.getRookMoves(piece);
             case 'knight':
-                validMoves = this.getKnightMoves();
-                break;
+                return this.getKnightMoves(piece);
             case 'bishop':
-                validMoves = this.getBishopMoves();
-                break;
+                return this.getBishopMoves(piece);
             case 'queen':
-                validMoves = this.getQueenMoves();
-                break;
+                return this.getQueenMoves(piece);
             case 'king':
-                validMoves = this.getKingMoves();
-                break;
+                return this.getKingMoves(piece);
             default:
                 console.log('Not a valid piece. You messing with the source code. Naughty Naughty.');
-                validMoves = null;
-                break;
+                return null;
         }
-
-        return validMoves;
     }
 
-    getPawnMoves() {
-        if (this.selectedPiece.color === 'w') {
-            return this.pawnMovesLogic('b', 1, 4);
+    getPawnMoves(piece) {
+        if (piece.color === 'w') {
+            return this.pawnMovesLogic(piece, 'b', 1, 4);
         }
 
-        return this.pawnMovesLogic('w', -1, 3);
+        return this.pawnMovesLogic(piece, 'w', -1, 3);
     }
 
-    pawnMovesLogic(color, inc, enPassantRank) {
+    pawnMovesLogic(piece, color, inc, enPassantRank) {
         const pawnMoves = new Set();
 
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+        const [x, y] = piece.getPos();
 
         if (y + inc < BOARD_SIZE && this.grid[y + inc][x] === null) {
             pawnMoves.add(`${x},${y + inc}`);
         }
 
         // Check for double move if pawn hasn't moved and the squares in front are empty
-        if (y + inc + inc < BOARD_SIZE && this.grid[y + inc][x] === null && this.grid[y + inc + inc][x] === null && !this.selectedPiece.hasMoved) {
+        if (y + inc + inc < BOARD_SIZE && this.grid[y + inc][x] === null && this.grid[y + inc + inc][x] === null && !piece.hasMoved) {
             pawnMoves.add(`${x},${y + inc + inc}`);
         }
 
@@ -628,21 +588,20 @@ class Board {
         return pawnMoves;
     }
 
-    getRookMoves() {
-        if (this.selectedPiece.color === 'w') {
-            return this.rookMovesLogic('b');
+    getRookMoves(piece) {
+        if (piece.color === 'w') {
+            return this.rookMovesLogic(piece, 'b');
         }
         
-        return this.rookMovesLogic('w');
+        return this.rookMovesLogic(piece, 'w');
     }
 
-    rookMovesLogic(color) {
+    rookMovesLogic(piece, color) {
         const rookMoves = new Set();
 
         const flags = Array(4).fill(true);
 
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+        const [x, y] = piece.getPos();
 
         for (let inc = 1; inc < BOARD_SIZE; ++inc) {
             
@@ -650,7 +609,7 @@ class Board {
                 if (flags[0] && (this.grid[y + inc][x] === null || this.grid[y + inc][x].color === color)) {
                     rookMoves.add(`${x},${y + inc}`);
                 }
-                else if (flags[0] && this.grid[y + inc][x] !== null && this.grid[y + inc][x].color === this.selectedPiece.color) {
+                else if (flags[0] && this.grid[y + inc][x] !== null && this.grid[y + inc][x].color === piece.color) {
                     flags[0] = false;
                 } 
             }
@@ -659,7 +618,7 @@ class Board {
                 if (flags[1] && (this.grid[y][x + inc] === null || this.grid[y][x + inc].color === color)) {
                     rookMoves.add(`${x + inc},${y}`);
                 }
-                else if (flags[1] && this.grid[y][x + inc] !== null && this.grid[y][x + inc].color === this.selectedPiece.color) {
+                else if (flags[1] && this.grid[y][x + inc] !== null && this.grid[y][x + inc].color === piece.color) {
                     flags[1] = false;
                 } 
             }
@@ -668,7 +627,7 @@ class Board {
                 if (flags[2] && (this.grid[y - inc][x] === null || this.grid[y - inc][x].color === color)) {
                     rookMoves.add(`${x},${y - inc}`);
                 }
-                else if (flags[2] && this.grid[y - inc][x] !== null && this.grid[y - inc][x].color === this.selectedPiece.color) {
+                else if (flags[2] && this.grid[y - inc][x] !== null && this.grid[y - inc][x].color === piece.color) {
                     flags[2] = false;
                 } 
             }
@@ -677,7 +636,7 @@ class Board {
                 if (flags[3] && (this.grid[y][x - inc] === null || this.grid[y][x - inc].color === color)) {
                     rookMoves.add(`${x - inc},${y}`);
                 }
-                else if (flags[3] && this.grid[y][x - inc] !== null && this.grid[y][x - inc].color === this.selectedPiece.color) {
+                else if (flags[3] && this.grid[y][x - inc] !== null && this.grid[y][x - inc].color === piece.color) {
                     flags[3] = false;
                 } 
             }
@@ -687,19 +646,18 @@ class Board {
         return rookMoves;
     }
 
-    getKnightMoves() {
-        if (this.selectedPiece.color === 'w') {
-            return this.knightMovesLogic('b');
+    getKnightMoves(piece) {
+        if (piece.color === 'w') {
+            return this.knightMovesLogic(piece, 'b');
         } 
         
-        return this.knightMovesLogic('w');
+        return this.knightMovesLogic(piece, 'w');
     }
 
-    knightMovesLogic(color) {
+    knightMovesLogic(piece, color) {
         const knightMoves = new Set();
 
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+        const [x, y] = piece.getPos();
 
         if (y + 2 < BOARD_SIZE && x + 1 < BOARD_SIZE) {
             if (this.grid[y + 2][x + 1] === null || this.grid[y + 2][x + 1].color === color) {
@@ -752,21 +710,20 @@ class Board {
         return knightMoves;
     }
 
-    getBishopMoves() {
-        if (this.selectedPiece.color === 'w') {
-            return this.bishopMovesLogic('b');
+    getBishopMoves(piece) {
+        if (piece.color === 'w') {
+            return this.bishopMovesLogic(piece, 'b');
         } 
         
-        return this.bishopMovesLogic('w');
+        return this.bishopMovesLogic(piece, 'w');
     }
 
-    bishopMovesLogic(color) {
+    bishopMovesLogic(piece, color) {
         const bishopMoves = new Set();
 
         const flags = Array(4).fill(true);
 
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+        const [x, y] = piece.getPos();
         
         for (let inc = 1; inc < BOARD_SIZE; ++inc) {
             
@@ -774,7 +731,7 @@ class Board {
                 if (flags[0] && (this.grid[y + inc][x + inc] === null || this.grid[y + inc][x + inc].color === color)) {
                     bishopMoves.add(`${x + inc},${y + inc}`);
                 }
-                else if (flags[0] && this.grid[y + inc][x + inc] !== null && this.grid[y + inc][x + inc].color === this.selectedPiece.color) {
+                else if (flags[0] && this.grid[y + inc][x + inc] !== null && this.grid[y + inc][x + inc].color === piece.color) {
                     flags[0] = false;
                 } 
             }
@@ -783,7 +740,7 @@ class Board {
                 if (flags[1] && (this.grid[y - inc][x + inc] === null || this.grid[y - inc][x + inc].color === color)) {
                     bishopMoves.add(`${x + inc},${y - inc}`);
                 }
-                else if (flags[1] && this.grid[y - inc][x + inc] !== null && this.grid[y - inc][x + inc].color === this.selectedPiece.color) {
+                else if (flags[1] && this.grid[y - inc][x + inc] !== null && this.grid[y - inc][x + inc].color === piece.color) {
                     flags[1] = false;
                 } 
             }
@@ -792,7 +749,7 @@ class Board {
                 if (flags[2] && (this.grid[y + inc][x - inc] === null || this.grid[y + inc][x - inc].color === color)) {
                     bishopMoves.add(`${x - inc},${y + inc}`);
                 }
-                else if (flags[2] && this.grid[y + inc][x - inc] !== null && this.grid[y + inc][x - inc].color === this.selectedPiece.color) {
+                else if (flags[2] && this.grid[y + inc][x - inc] !== null && this.grid[y + inc][x - inc].color === piece.color) {
                     flags[2] = false;
                 } 
             }
@@ -801,7 +758,7 @@ class Board {
                 if (flags[3] && (this.grid[y - inc][x - inc] === null || this.grid[y - inc][x - inc].color === color)) {
                     bishopMoves.add(`${x - inc},${y - inc}`);
                 }
-                else if (flags[3] && this.grid[y - inc][x - inc] !== null && this.grid[y - inc][x - inc].color === this.selectedPiece.color) {
+                else if (flags[3] && this.grid[y - inc][x - inc] !== null && this.grid[y - inc][x - inc].color === piece.color) {
                     flags[3] = false;
                 } 
             }
@@ -811,21 +768,20 @@ class Board {
         return bishopMoves;
     }
 
-    getQueenMoves() {
-        if (this.selectedPiece.color === 'w') {
-            return this.queenMovesLogic('b');
+    getQueenMoves(piece) {
+        if (piece.color === 'w') {
+            return this.queenMovesLogic(piece, 'b');
         }
         
-        return this.queenMovesLogic('w');
+        return this.queenMovesLogic(piece, 'w');
     }
 
-    queenMovesLogic(color) {
+    queenMovesLogic(piece, color) {
         const queenMoves = new Set();
 
         const flags = Array(8).fill(true);
 
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+        const [x, y] = piece.getPos();
         
         for (let inc = 1; inc < BOARD_SIZE; ++inc) {
             
@@ -833,7 +789,7 @@ class Board {
                 if (flags[0] && (this.grid[y + inc][x + inc] === null || this.grid[y + inc][x + inc].color === color)) {
                     queenMoves.add(`${x + inc},${y + inc}`);
                 }
-                else if (flags[0] && this.grid[y + inc][x + inc] !== null && this.grid[y + inc][x + inc].color === this.selectedPiece.color) {
+                else if (flags[0] && this.grid[y + inc][x + inc] !== null && this.grid[y + inc][x + inc].color === piece.color) {
                     flags[0] = false;
                 } 
             }
@@ -842,7 +798,7 @@ class Board {
                 if (flags[1] && (this.grid[y - inc][x + inc] === null || this.grid[y - inc][x + inc].color === color)) {
                     queenMoves.add(`${x + inc},${y - inc}`);
                 }
-                else if (flags[1] && this.grid[y - inc][x + inc] !== null && this.grid[y - inc][x + inc].color === this.selectedPiece.color) {
+                else if (flags[1] && this.grid[y - inc][x + inc] !== null && this.grid[y - inc][x + inc].color === piece.color) {
                     flags[1] = false;
                 } 
             }
@@ -851,7 +807,7 @@ class Board {
                 if (flags[2] && (this.grid[y + inc][x - inc] === null || this.grid[y + inc][x - inc].color === color)) {
                     queenMoves.add(`${x - inc},${y + inc}`);
                 }
-                else if (flags[2] && this.grid[y + inc][x - inc] !== null && this.grid[y + inc][x - inc].color === this.selectedPiece.color) {
+                else if (flags[2] && this.grid[y + inc][x - inc] !== null && this.grid[y + inc][x - inc].color === piece.color) {
                     flags[2] = false;
                 } 
             }
@@ -860,7 +816,7 @@ class Board {
                 if (flags[3] && (this.grid[y - inc][x - inc] === null || this.grid[y - inc][x - inc].color === color)) {
                     queenMoves.add(`${x - inc},${y - inc}`);
                 }
-                else if (flags[3] && this.grid[y - inc][x - inc] !== null && this.grid[y - inc][x - inc].color === this.selectedPiece.color) {
+                else if (flags[3] && this.grid[y - inc][x - inc] !== null && this.grid[y - inc][x - inc].color === piece.color) {
                     flags[3] = false;
                 } 
             }
@@ -869,7 +825,7 @@ class Board {
                 if (flags[4] && (this.grid[y + inc][x] === null || this.grid[y + inc][x].color === color)) {
                     queenMoves.add(`${x},${y + inc}`);
                 }
-                else if (flags[4] && this.grid[y + inc][x] !== null && this.grid[y + inc][x].color === this.selectedPiece.color) {
+                else if (flags[4] && this.grid[y + inc][x] !== null && this.grid[y + inc][x].color === piece.color) {
                     flags[4] = false;
                 } 
             }
@@ -878,7 +834,7 @@ class Board {
                 if (flags[5] && (this.grid[y][x + inc] === null || this.grid[y][x + inc].color === color)) {
                     queenMoves.add(`${x + inc},${y}`);
                 }
-                else if (flags[5] && this.grid[y][x + inc] !== null && this.grid[y][x + inc].color === this.selectedPiece.color) {
+                else if (flags[5] && this.grid[y][x + inc] !== null && this.grid[y][x + inc].color === piece.color) {
                     flags[5] = false;
                 } 
             }
@@ -887,7 +843,7 @@ class Board {
                 if (flags[6] && (this.grid[y - inc][x] === null || this.grid[y - inc][x].color === color)) {
                     queenMoves.add(`${x},${y - inc}`);
                 }
-                else if (flags[6] && this.grid[y - inc][x] !== null && this.grid[y - inc][x].color === this.selectedPiece.color) {
+                else if (flags[6] && this.grid[y - inc][x] !== null && this.grid[y - inc][x].color === piece.color) {
                     flags[6] = false;
                 } 
             }
@@ -896,7 +852,7 @@ class Board {
                 if (flags[7] && (this.grid[y][x - inc] === null || this.grid[y][x - inc].color === color)) {
                     queenMoves.add(`${x - inc},${y}`);
                 }
-                else if (flags[7] && this.grid[y][x - inc] !== null && this.grid[y][x - inc].color === this.selectedPiece.color) {
+                else if (flags[7] && this.grid[y][x - inc] !== null && this.grid[y][x - inc].color === piece.color) {
                     flags[7] = false;
                 } 
             }
@@ -906,19 +862,18 @@ class Board {
         return queenMoves;
     }
 
-    getKingMoves() {
-        if (this.selectedPiece.color === 'w') {
-            return this.kingMovesLogic('b');
+    getKingMoves(piece) {
+        if (piece.color === 'w') {
+            return this.kingMovesLogic(piece, 'b');
         }
 
-        return this.kingMovesLogic('w')
+        return this.kingMovesLogic(piece, 'w')
     }
 
-    kingMovesLogic(color) {
+    kingMovesLogic(piece, color) {
         const kingMoves = new Set();
 
-        const x = this.selectedPiece.x;
-        const y = this.selectedPiece.y;
+        const [x, y] = piece.getPos();
 
         if (y + 1 < BOARD_SIZE) {
             if (this.grid[y + 1][x] === null || this.grid[y + 1][x].color === color) {
