@@ -246,20 +246,22 @@ class Board {
         const validMoves = this.getValidMoves(this.selectedPiece);
         const move = `${x},${y}`;
 
-        console.log(validMoves);
-        console.log(move);
-
-        if (!this.handleCheck()) {
+        if (this.isInCheck()) {
             this.resetSelectedPiece();
             return;
         }
 
         if (validMoves.has(move)) {
             if (this.selectedPiece.type === 'king') {
-                if (!this.handleKingMove(move, x, y)) {
+                if (this.handleKingMove(move, x, y) || this.checkCastling(move)) {
                     this.resetSelectedPiece();
                     return;
                 }
+            }
+
+            if (this.isPinned(x, y)){
+                this.resetSelectedPiece();
+                return;
             }
 
             this.updatePieceState(this.selectedPiece, move);
@@ -312,7 +314,7 @@ class Board {
         return [Number(x), Number(y)];
     }
 
-    handleCastling(move) {
+    checkCastling(move) {
         const [x, y] = this.selectedPiece.getPos();
 
         if (this.selectedPiece.hasMoved) {
@@ -325,13 +327,13 @@ class Board {
             }
 
             if (move === `${x + 2},${y}`) {
-                if (this.checkCastlingPieces(y, x + 1, x + 3, 1, this.blackPieces)) {
+                if (this.validateCastling(y, x + 1, x + 3, 1, this.blackPieces)) {
                     this.moveCastlingPieces(x, x + 2, x + 3, x + 1, y);
                     return true;
                 }
             }
             else if (move === `${x - 2},${y}`) {
-                if (this.checkCastlingPieces(y, x - 1, x - 4, -1, this.blackPieces)) {
+                if (this.validateCastling(y, x - 1, x - 4, -1, this.blackPieces)) {
                     this.moveCastlingPieces(x, x - 2, x - 4, x - 1, y);   
                     return true;
                 }
@@ -343,13 +345,13 @@ class Board {
             }
 
             if (move === `${x + 2},${y}`) {
-                if (this.checkCastlingPieces(y, x + 1, x + 3, 1, this.whitePieces)) {
+                if (this.validateCastling(y, x + 1, x + 3, 1, this.whitePieces)) {
                     this.moveCastlingPieces(x, x + 2, x + 3, x + 1, y);
                     return true;
                 }
             }
             else if (move === `${x - 2},${y}`) {
-                if (this.checkCastlingPieces(y, x - 1, x - 4, -1, this.whitePieces)) {
+                if (this.validateCastling(y, x - 1, x - 4, -1, this.whitePieces)) {
                     this.moveCastlingPieces(x, x - 2, x - 4, x - 1, y);   
                     return true;
                 }
@@ -359,7 +361,7 @@ class Board {
         return false;
     }
 
-    checkCastlingPieces(y, start, bound, inc, pieces) {
+    validateCastling(y, start, bound, inc, pieces) {
         const prevSelectedPiece = this.selectedPiece;
         
         for (let x = start; x < bound; x += inc) {            
@@ -368,12 +370,13 @@ class Board {
             }
 
             for (const piece of pieces) {
-                this.selectedPiece = piece;
-                const validMoves = this.getValidMoves();
+                if (!piece.removed) {
+                    const validMoves = this.getValidMoves(piece);
 
-                if (validMoves.has(`${x},${y}`)) {
-                    this.selectedPiece = prevSelectedPiece;
-                    return false;
+                    if (validMoves.has(`${x},${y}`)) {
+                        this.selectedPiece = prevSelectedPiece;
+                        return false;
+                    }
                 }
             }
         }
@@ -412,24 +415,62 @@ class Board {
         // The king and rook have moved.
         king.setHasMoved();
         rook.setHasMoved();
-
-        return true;
     }
 
-    handleCheck() {
+    isInCheck() {
         if (this.selectedPiece.color === 'b' && this.blackCheck && this.selectedPiece.type !== 'king') {
-            return false;
+            return true;
         } 
 
         if (this.selectedPiece.color === 'w' && this.white && this.selectedPiece.type !== 'king') {
-            return false;
+            return true;
         }
 
-        return true;
+        return false;
+    }
+
+    isPinned(x, y) {
+        let result = false;
+        let pieces, kingX, kingY;
+
+        if (this.selectedPiece.color === 'w') {
+            pieces = this.blackPieces;
+            [kingX, kingY] = this.getWhiteKingPos();
+        }
+        else {
+            pieces = this.whitePieces;
+            [kingX, kingY] = this.getBlackKingPos();
+        }
+
+        // Simulate the move
+        const takenPiece = this.grid[y][x];
+        this.grid[y][x] = this.selectedPiece;
+
+        const [prevX, prevY] = this.selectedPiece.getPos();
+        this.grid[prevY][prevX] = null;
+
+        const kingPos = `${kingX},${kingY}`;
+
+        // Check if king in check.
+        pieces.forEach((piece) => {
+            if (!piece.removed) {
+                const validMoves = this.getValidMoves(piece);
+
+                if (validMoves.has(kingPos)) {
+                    result = true;
+                }
+            }
+        });
+
+        // Revert to previous state
+        this.grid[prevY][prevX] = this.selectedPiece;
+        this.grid[y][x] = takenPiece;
+
+        return result;
     }
 
     handleKingMove(move, x, y) {        
-        let result = true;
+        let result = false;
         let pieces;
 
         if (this.selectedPiece.color === 'w') {
@@ -452,7 +493,7 @@ class Board {
                 const validMoves = this.getValidMoves(piece);
 
                 if (validMoves.has(move)) {
-                    result = false;
+                    result = true;
                 }
             }
         });
