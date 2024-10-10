@@ -246,20 +246,20 @@ class Board {
         const validMoves = this.getValidMoves(this.selectedPiece);
         const move = `${x},${y}`;
 
-        if (this.isInCheck()) {
+        if (this.isInCheck(move)) {
             this.resetSelectedPiece();
             return;
         }
 
         if (validMoves.has(move)) {
+            
             if (this.selectedPiece.type === 'king') {
-                if (this.handleKingMove(move, x, y) || this.checkCastling(move)) {
+               if (this.handleKingMove(move, x, y)) {    
                     this.resetSelectedPiece();
                     return;
-                }
+               }
             }
-
-            if (this.isPinned(x, y)){
+            else if (this.isPinned(x, y)) {
                 this.resetSelectedPiece();
                 return;
             }
@@ -273,7 +273,7 @@ class Board {
             // Remove piece and update board
             if (this.grid[y][x] !== null) {
                 this.drawBoardSquare(x, y);
-                this.grid[y][x].setRemoved();
+                this.grid[y][x].setRemoved(true);
             }
 
             // Update piece position, canvas, and grid
@@ -312,6 +312,17 @@ class Board {
     parseMoveForPos(move) {
         const [x, y] = move.split(',');
         return [Number(x), Number(y)];
+    }
+
+    handleKingMove(move, x, y) {
+        if (this.validateKingMove(move, x, y)) {
+            return true;
+        }
+        else if (this.checkCastling(move)) {
+            return true;
+        }
+
+        return false;
     }
 
     checkCastling(move) {
@@ -362,8 +373,6 @@ class Board {
     }
 
     validateCastling(y, start, bound, inc, pieces) {
-        const prevSelectedPiece = this.selectedPiece;
-        
         for (let x = start; x < bound; x += inc) {            
             if (this.grid[y][x] !== null) {
                 return false;
@@ -374,14 +383,11 @@ class Board {
                     const validMoves = this.getValidMoves(piece);
 
                     if (validMoves.has(`${x},${y}`)) {
-                        this.selectedPiece = prevSelectedPiece;
                         return false;
                     }
                 }
             }
         }
-
-        this.selectedPiece = prevSelectedPiece;
 
         if (this.grid[y][bound] !== null) {
             const piece = this.grid[y][bound];
@@ -417,16 +423,62 @@ class Board {
         rook.setHasMoved();
     }
 
-    isInCheck() {
-        if (this.selectedPiece.color === 'b' && this.blackCheck && this.selectedPiece.type !== 'king') {
-            return true;
+    isInCheck(move) {
+        if (this.selectedPiece.color === 'b' && this.blackCheck) {
+            const [kingX, kingY] = this.getBlackKingPos();
+            const king = this.grid[kingY][kingX];
+
+            if (this.selectedPiece.type !== 'king' && !this.checkIfMoveBlocksKingCheck(king, this.whitePieces, move)) {
+                return true;
+            }
         } 
 
-        if (this.selectedPiece.color === 'w' && this.white && this.selectedPiece.type !== 'king') {
-            return true;
+        if (this.selectedPiece.color === 'w' && this.white) {
+            const [kingX, kingY] = this.getWhiteKingPos();
+            const king = this.grid[kingY][kingX];
+
+            if (this.selectedPiece.type !== 'king' && !this.checkIfMoveBlocksKingCheck(king, this.blackPieces, move)) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    checkIfMoveBlocksKingCheck(king, pieces, move) {
+        const [x, y] = this.parseMoveForPos(move);
+        const [kingX, kingY] = king.getPos();
+        let result = true;
+
+        // Simulate the move
+        const takenPiece = this.grid[y][x];
+        this.grid[y][x] = this.selectedPiece;
+
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(true);
+        }
+        const [prevX, prevY] = this.selectedPiece.getPos();
+        this.grid[prevY][prevX] = null;
+
+        pieces.forEach((piece) => {
+            if (!piece.removed) {
+                const validMoves = this.getValidMoves(piece);
+
+                if (validMoves.has(`${kingX},${kingY}`)) {
+                    result = false;
+                }
+            }
+        });
+
+        // Revert to previous state
+        this.grid[prevY][prevX] = this.selectedPiece;
+        this.grid[y][x] = takenPiece;
+        
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(true);
+        }
+
+        return result;
     }
 
     isPinned(x, y) {
@@ -445,6 +497,10 @@ class Board {
         // Simulate the move
         const takenPiece = this.grid[y][x];
         this.grid[y][x] = this.selectedPiece;
+
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(true);
+        }
 
         const [prevX, prevY] = this.selectedPiece.getPos();
         this.grid[prevY][prevX] = null;
@@ -465,11 +521,17 @@ class Board {
         // Revert to previous state
         this.grid[prevY][prevX] = this.selectedPiece;
         this.grid[y][x] = takenPiece;
+        
+
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(false);
+        }
 
         return result;
     }
 
-    handleKingMove(move, x, y) {        
+    validateKingMove(move, x, y) {   
+        console.log('validateMove');     
         let result = false;
         let pieces;
 
@@ -483,6 +545,10 @@ class Board {
         // Simulate the move
         const takenPiece = this.grid[y][x];
         this.grid[y][x] = this.selectedPiece;
+        
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(true);
+        }
 
         const [prevX, prevY] = this.selectedPiece.getPos();
         this.grid[prevY][prevX] = null;
@@ -501,7 +567,12 @@ class Board {
         // Revert to previous state
         this.grid[prevY][prevX] = this.selectedPiece;
         this.grid[y][x] = takenPiece;
+        
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(false);
+        }
 
+        console.log('result', result);
         return result;
     }
 
@@ -1025,8 +1096,8 @@ class Piece {
         this.y = y;
     }
 
-    setRemoved() {
-        this.removed = true;
+    setRemoved(flag) {
+        this.removed = flag;
     }
 }
 
