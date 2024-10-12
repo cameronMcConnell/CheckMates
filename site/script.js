@@ -281,6 +281,8 @@ class Board {
             this.drawPiece(this.selectedPiece);
             this.grid[y][x] = this.selectedPiece;
 
+            // Set check and handle checkmates and draws here
+
             if (this.localPlay) {
                 this.switchColor();
             }
@@ -531,7 +533,6 @@ class Board {
     }
 
     validateKingMove(move, x, y) {   
-        console.log('validateMove');     
         let result = false;
         let pieces;
 
@@ -572,7 +573,6 @@ class Board {
             takenPiece.setRemoved(false);
         }
 
-        console.log('result', result);
         return result;
     }
 
