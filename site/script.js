@@ -246,15 +246,21 @@ class Board {
         const validMoves = this.getValidMoves(this.selectedPiece);
         const move = `${x},${y}`;
 
-        if (this.isInCheck(move)) {
+        if (!this.doesMoveBlockCheck(move)) {
             this.resetSelectedPiece();
             return;
+        }
+        else if (this.selectedPiece.type === 'king') {
+            if (this.checkCastling(move)) {
+                this.resetSelectedPiece();
+                return;
+            }
         }
 
         if (validMoves.has(move)) {
             
             if (this.selectedPiece.type === 'king') {
-               if (this.handleKingMove(move, x, y)) {    
+               if (!this.isValidKingMove(move, x, y)) {    
                     this.resetSelectedPiece();
                     return;
                }
@@ -282,6 +288,7 @@ class Board {
             this.grid[y][x] = this.selectedPiece;
 
             // Set check and handle checkmates and draws here
+            this.evaluateGameState();
 
             if (this.localPlay) {
                 this.switchColor();
@@ -292,6 +299,33 @@ class Board {
         }
 
         this.selectedPiece = null;
+    }
+
+    evaluateGameState() {
+        const color = this.selectedPiece.color;
+
+        if (color === 'w') {
+            const [kingX, kingY] = this.getBlackKingPos();
+            const kingPos = `${kingX},${kingY}`;
+            const validMoves = this.getValidMoves(this.selectedPiece);
+            
+            if (validMoves.has(kingPos)) {
+                this.setBlackCheck(true);
+            }
+
+
+        }
+        else {
+            const [kingX, kingY] = this.getWhiteKingPos();
+            const kingPos = `${kingX},${kingY}`;
+            const validMoves = this.getValidMoves(this.selectedPiece);
+
+            if (validMoves.has(kingPos)) {
+                this.setWhiteCheck(true);
+            }
+
+
+        }
     }
 
     highlightPiece(x, y, piece) {
@@ -316,15 +350,48 @@ class Board {
         return [Number(x), Number(y)];
     }
 
-    handleKingMove(move, x, y) {
-        if (this.validateKingMove(move, x, y)) {
-            return true;
+    isValidKingMove(move, x, y) {   
+        let isValidMove = true;
+        let pieces;
+
+        if (this.selectedPiece.color === 'w') {
+            pieces = this.blackPieces;
         }
-        else if (this.checkCastling(move)) {
-            return true;
+        else {
+            pieces = this.whitePieces;
         }
 
-        return false;
+        // Simulate the move
+        const takenPiece = this.grid[y][x];
+        this.grid[y][x] = this.selectedPiece;
+        
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(true);
+        }
+
+        const [prevX, prevY] = this.selectedPiece.getPos();
+        this.grid[prevY][prevX] = null;
+        
+        // Check the moves of each opposing piece
+        pieces.forEach((piece) => {
+            if (!piece.removed) {
+                const validMoves = this.getValidMoves(piece);
+
+                if (validMoves.has(move)) {
+                    isValidMove = false;
+                }
+            }
+        });
+
+        // Revert to previous state
+        this.grid[prevY][prevX] = this.selectedPiece;
+        this.grid[y][x] = takenPiece;
+        
+        if (takenPiece !== null) {
+            takenPiece.setRemoved(false);
+        }
+
+        return isValidMove;
     }
 
     checkCastling(move) {
@@ -425,26 +492,26 @@ class Board {
         rook.setHasMoved();
     }
 
-    isInCheck(move) {
+    doesMoveBlockCheck(move) {
         if (this.selectedPiece.color === 'b' && this.blackCheck) {
             const [kingX, kingY] = this.getBlackKingPos();
             const king = this.grid[kingY][kingX];
 
             if (this.selectedPiece.type !== 'king' && !this.checkIfMoveBlocksKingCheck(king, this.whitePieces, move)) {
-                return true;
+                return false;
             }
         } 
 
-        if (this.selectedPiece.color === 'w' && this.white) {
+        if (this.selectedPiece.color === 'w' && this.whiteCheck) {
             const [kingX, kingY] = this.getWhiteKingPos();
             const king = this.grid[kingY][kingX];
 
             if (this.selectedPiece.type !== 'king' && !this.checkIfMoveBlocksKingCheck(king, this.blackPieces, move)) {
-                return true;
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     checkIfMoveBlocksKingCheck(king, pieces, move) {
@@ -525,50 +592,6 @@ class Board {
         this.grid[y][x] = takenPiece;
         
 
-        if (takenPiece !== null) {
-            takenPiece.setRemoved(false);
-        }
-
-        return result;
-    }
-
-    validateKingMove(move, x, y) {   
-        let result = false;
-        let pieces;
-
-        if (this.selectedPiece.color === 'w') {
-            pieces = this.blackPieces;
-        }
-        else {
-            pieces = this.whitePieces;
-        }
-
-        // Simulate the move
-        const takenPiece = this.grid[y][x];
-        this.grid[y][x] = this.selectedPiece;
-        
-        if (takenPiece !== null) {
-            takenPiece.setRemoved(true);
-        }
-
-        const [prevX, prevY] = this.selectedPiece.getPos();
-        this.grid[prevY][prevX] = null;
-        
-        // Check the moves of each opposing piece
-        pieces.forEach((piece) => {
-            if (!piece.removed) {
-                const validMoves = this.getValidMoves(piece);
-
-                if (validMoves.has(move)) {
-                    result = true;
-                }
-            }
-        });
-
-        // Revert to previous state
-        this.grid[prevY][prevX] = this.selectedPiece;
-        this.grid[y][x] = takenPiece;
-        
         if (takenPiece !== null) {
             takenPiece.setRemoved(false);
         }
