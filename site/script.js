@@ -71,6 +71,7 @@ class Board {
 
         this.localPlay = true;
         
+        this.gameOver = false;
         this.selectedPiece = null;
         this.whiteCheck = false;
         this.blackCheck = false;
@@ -85,6 +86,10 @@ class Board {
         this.color === 'w' ? this.color = 'b' : this.color = 'w';
     }
 
+    setGameOver(flag) {
+        this.gameOver = flag;
+    }
+
     setWhiteCheck(flag) {
         this.whiteCheck = flag;
     }
@@ -93,16 +98,16 @@ class Board {
         this.blackCheck = flag;
     }
 
-    setWhiteCheckmate() {
-        this.whiteCheckmate = true;
+    setWhiteCheckmate(flag) {
+        this.whiteCheckmate = flag;
     }
 
-    setBlackCheckmate() {
-        this.blackCheckmate = true;
+    setBlackCheckmate(flag) {
+        this.blackCheckmate = flag;
     }
 
-    setGameDraw() {
-        this.gameDraw = true;
+    setGameDraw(flag) {
+        this.gameDraw = flag;
     }
 
     updateWhiteKingPos(x, y) {
@@ -246,7 +251,7 @@ class Board {
         const validMoves = this.getValidMoves(this.selectedPiece);
         const move = `${x},${y}`;
 
-        if (!this.doesMoveBlockCheck(move)) {
+        if (!this.doesMoveBlockCheck(move) || !this.doesMoveTakeCheckingPiece(move)) {
             this.resetSelectedPiece();
             return;
         }
@@ -303,29 +308,128 @@ class Board {
 
     evaluateGameState() {
         const color = this.selectedPiece.color;
+        
+        if (this.isInCheck(color)) {
+            if (this.isCheckmate(color)) {
+                this.setGameOver(true);
+            }
+        }
+        // Add Draws here
+    }
 
-        if (color === 'w') {
-            const [kingX, kingY] = this.getBlackKingPos();
-            const kingPos = `${kingX},${kingY}`;
-            const validMoves = this.getValidMoves(this.selectedPiece);
-            
-            if (validMoves.has(kingPos)) {
+    isInCheck(color) {
+        const [kingX, kingY] = color === 'w' ? this.getBlackKingPos() : this.getWhiteKingPos();
+        const kingPos = `${kingX},${kingY}`;
+        const validMoves = this.getValidMoves(this.selectedPiece);
+
+        if (validMoves.has(kingPos)) {
+            if (color === 'w') {
                 this.setBlackCheck(true);
             }
-
-
-        }
-        else {
-            const [kingX, kingY] = this.getWhiteKingPos();
-            const kingPos = `${kingX},${kingY}`;
-            const validMoves = this.getValidMoves(this.selectedPiece);
-
-            if (validMoves.has(kingPos)) {
+            else {
                 this.setWhiteCheck(true);
             }
 
-
+            return true;
         }
+
+        return false;
+    }
+
+    isCheckmate(color) {
+        const [kingX, kingY] = color === 'w' ? this.getBlackKingPos() : this.getWhiteKingPos();
+        const king = this.grid[kingY][kingX];
+        const validKingMoves = this.getValidMoves(king);
+
+        // Check if king can move.
+        for (const move of validKingMoves) {
+            const [x, y] = this.parseMoveForPos(move);
+
+            if (this.isValidKingMove(move, x, y)) {
+                return false;
+            }
+        }
+
+        const pieces = color === 'w' ? this.blackPieces : this.whitePieces;
+        const opposingPieces = color == 'w' ? this.whitePieces : this.blackPieces;
+
+        // Check if move can take a checking piece.
+        if (this.checkIfMoveTakesCheckingPiece(king, move, opposingPieces)) {
+            return false;
+        }
+
+        // Check if move can block check.
+        for (const piece of pieces) {
+            if (piece.type === 'king' || piece.removed) continue;
+            const validMoves = this.getValidMoves(piece);
+
+            for (const move of validMoves) {
+                if (this.checkIfMoveBlocksKingCheck(king, opposingPieces, move)) {
+                    return false;
+                }
+            }
+        }
+
+        if (color === 'w') {
+            this.setBlackCheckmate(true);
+        }
+        else {
+            this.setWhiteCheckmate(true);
+        }
+
+        return true;
+    }
+
+    checkIfMoveTakesCheckingPiece(king, move, opposingPieces) {
+        const checkingPieces = this.getCheckingPieces(king, opposingPieces);
+
+        if (checkingPieces.length < 2) {
+            const checkingPiece = checkingPieces[0];
+            const [cpX, cpY] = checkingPiece.getPos();
+            const cpPos = `${cpX},${cpY}`;
+
+            if (move === cpPos) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    checkIfAnyMovesTakesCheckingPiece(king, pieces, opposingPieces){
+        const checkingPieces = this.getCheckingPieces(king, opposingPieces);
+
+        if (checkingPieces.length < 2) {
+            const checkingPiece = checkingPieces[0];
+            const [cpX, cpY] = checkingPiece.getPos();
+            const cpPos = `${cpX},${cpY}`;
+
+            for (const piece in pieces) {
+                const validMoves = this.getValidMoves(piece);
+
+                if (validMoves.has(cpPos)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    getCheckingPieces(king, opposingPieces) {
+        const [kingX, kingY] = king.getPos();
+        const kingPos = `${kingX},${kingY}`;
+        let checkingPieces = [];
+
+        for (const piece of opposingPieces) {
+            const validMoves = this.getValidMoves(piece);
+
+            if (validMoves.has(kingPos)) {
+                checkingPieces.push(piece);
+            }
+        }
+
+        return checkingPieces;
     }
 
     highlightPiece(x, y, piece) {
@@ -508,6 +612,30 @@ class Board {
 
             if (this.selectedPiece.type !== 'king' && !this.checkIfMoveBlocksKingCheck(king, this.blackPieces, move)) {
                 return false;
+            }
+        }
+
+        return true;
+    }
+
+    doesMoveTakeCheckingPiece(move) {
+        if (this.selectedPiece.color === 'b' && this.blackCheck) {
+            const [kingX, kingY] = this.getBlackKingPos();
+            const opposingPieces = this.whitePieces;
+            const king = this.grid[kingX][kingY];
+
+            if (!this.checkIfMoveTakesCheckingPiece(king, move, opposingPieces)) {
+                return false
+            }
+        }
+
+        if (this.selectedPiece.color === 'w' && this.whiteCheck) {
+            const [kingX, kingY] = this.getWhiteKingPos();
+            const opposingPieces = this.blackPieces;
+            const king = this.grid[kingX][kingY];
+
+            if (!this.checkIfMoveTakesCheckingPiece(king, move, opposingPieces)) {
+                return false
             }
         }
 
