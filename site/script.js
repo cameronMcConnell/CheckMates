@@ -261,6 +261,9 @@ class Board {
         else if (this.selectedPiece.type === 'king') {
             if (this.checkCastling(move)) {
                 this.resetSelectedPiece();
+                if (this.localPlay) {
+                    this.switchColor();
+                }
                 return;
             }
 
